@@ -30,6 +30,12 @@ sys_fork(void)
 }
 
 uint64
+sys_mycall(void)
+{
+  return mycall();
+}
+
+uint64
 sys_wait(void)
 {
   uint64 p;
