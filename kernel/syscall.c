@@ -104,7 +104,7 @@ extern uint64 sys_unlink(void);
 extern uint64 sys_wait(void);
 extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
-extern uint64 sys_mycall(void);
+extern uint64 sys_trace(void);
 
 static uint64 (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -128,21 +128,70 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
-[SYS_mycall]  sys_mycall,
+[SYS_trace]   sys_trace,
 };
+
+char *syscallnames[] = {
+[SYS_fork]    "fork",
+[SYS_exit]    "exit",
+[SYS_wait]    "wait",
+[SYS_pipe]    "pipe",
+[SYS_read]    "read",
+[SYS_kill]    "kill",
+[SYS_exec]    "exec",
+[SYS_fstat]   "fstat",
+[SYS_chdir]   "chdir",
+[SYS_dup]     "dup",
+[SYS_getpid]  "getpid",
+[SYS_sbrk]    "sbrk",
+[SYS_sleep]   "sleep",
+[SYS_uptime]  "uptime",
+[SYS_open]    "open",
+[SYS_write]   "write",
+[SYS_mknod]   "mknod",
+[SYS_unlink]  "unlink",
+[SYS_link]    "link",
+[SYS_mkdir]   "mkdir",
+[SYS_close]   "close",
+[SYS_trace]   "trace"
+};
+
 
 void
 syscall(void)
 {
   int num;
   struct proc *p = myproc();
+  int arg = 0;
 
   num = p->trapframe->a7;
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
+    arg = p->trapframe->a0;
     p->trapframe->a0 = syscalls[num]();
   } else {
     printf("%d %s: unknown sys call %d\n",
             p->pid, p->name, num);
     p->trapframe->a0 = -1;
+  }
+  
+  if((p->tracemask >> num) && (p->to_trace)) {
+    printf("inside cond");
+    switch(num){
+      case SYS_fork: 
+        printf("%d: syscall %s NULL-> %d\n", 
+        p->pid, syscallnames[num], p->trapframe->a0);
+        break;
+      case SYS_kill: 
+         printf("%d: syscall %s %s-> %d\n", 
+        p->pid, syscallnames[num], arg, p->trapframe->a0);
+        break;
+      case SYS_sbrk: 
+        printf("%d: syscall %s %s-> %d\n", 
+        p->pid, syscallnames[num], arg, p->trapframe->a0);
+        break;
+      default: 
+        printf("%d: syscall %s -> %d\n", 
+        p->pid, syscallnames[num], p->trapframe->a0);
+    }   
   }
 }

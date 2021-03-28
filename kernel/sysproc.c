@@ -30,12 +30,6 @@ sys_fork(void)
 }
 
 uint64
-sys_mycall(void)
-{
-  return mycall();
-}
-
-uint64
 sys_wait(void)
 {
   uint64 p;
@@ -87,6 +81,24 @@ sys_kill(void)
   if(argint(0, &pid) < 0)
     return -1;
   return kill(pid);
+}
+
+uint64
+sys_trace(void)
+{
+  printf("inside sys_trace");
+  int pid;
+  int mask;
+
+  if(argint(1, &pid) < 0)
+    return -1;
+  if(argint(0, &mask) < 0)
+    return -1;
+  
+  //debug
+  printf("pid: %d", pid);
+  printf("mask: %d", mask);
+  return trace(mask, pid);
 }
 
 // return how many clock tick interrupts have occurred

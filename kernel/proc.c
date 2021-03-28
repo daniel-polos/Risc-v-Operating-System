@@ -297,6 +297,9 @@ fork(void)
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
 
+  //copy trace mask
+  np->tracemask = p->tracemask;
+
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
 
@@ -598,6 +601,27 @@ kill(int pid)
     }
     release(&p->lock);
   }
+  return -1;
+}
+
+
+int
+trace(int mask, int pid)
+{
+  printf("inside trace\n");
+  struct proc *p;
+
+  for(p = proc; p < &proc[NPROC]; p++){
+    acquire(&p->lock)
+    if(p->pid == pid){
+      printf("found the process!\n");
+      p->tracemask = mask;
+      p->to_trace = 1;
+    }
+      //release(&p->lock);
+      return 0;
+  }
+    release(&p->lock);
   return -1;
 }
 
