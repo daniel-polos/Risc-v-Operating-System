@@ -72,10 +72,33 @@ runcmd(struct cmd *cmd)
     panic("runcmd");
 
   case EXEC:
+
     ecmd = (struct execcmd*)cmd;
     if(ecmd->argv[0] == 0)
       exit(1);
     exec(ecmd->argv[0], ecmd->argv);
+ 
+    char* path = malloc(100);
+    memset(path, 0, 100);
+    char buf[2];
+    buf[1]=0;
+    buf[0]=0;
+    int fd = open("/path", O_RDONLY);
+    fprintf(2, "fd:%d\n", fd);
+    read(fd, buf, 1);
+    while(buf[0] != 0) { 
+      while(buf[0] != ':'){
+        strcat(path, buf);
+        read(fd, buf, 1);
+        buf[1]=0;
+      }
+      strcat(path, ecmd->argv[0]);
+      exec(path, ecmd->argv);
+      memset(path, 0, 100);
+      read(fd, buf, 1);
+    }
+
+    free(path);
     fprintf(2, "exec %s failed\n", ecmd->argv[0]);
     break;
 
