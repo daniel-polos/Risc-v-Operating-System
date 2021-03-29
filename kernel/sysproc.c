@@ -39,6 +39,30 @@ sys_wait(void)
 }
 
 uint64
+sys_wait_stat(void)
+{
+  uint64 status;
+  struct perf* performance;
+
+  if(argaddr(0, &status) < 0)
+    return -1;
+  if(argaddr(1, (uint64*) &performance) < 0)
+    return -1;
+  
+  return wait_stat((int*)&status, performance);
+}
+
+  // int pid;
+  // int mask;
+
+  // if(argint(1, &pid) < 0)
+  //   return -1;
+  // if(argint(0, &mask) < 0)
+  //   return -1;
+  
+  // return trace(mask, pid);
+
+uint64
 sys_sbrk(void)
 {
   int addr;
@@ -86,7 +110,6 @@ sys_kill(void)
 uint64
 sys_trace(void)
 {
-  printf("inside sys_trace\n");
   int pid;
   int mask;
 

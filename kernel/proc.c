@@ -120,6 +120,14 @@ found:
   p->pid = allocpid();
   p->state = USED;
 
+  //initialize performance fields
+  p->ctime = ticks;
+  p->rutime = 0;
+  p->stime = 0;
+  p->retime = 0;
+  p->ttime = 0;
+  p->average_bursttime = 0;
+
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
     freeproc(p);
@@ -164,6 +172,13 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+  // ?
+  p->ctime = 0;
+  p->ttime = 0;
+  p->retime = 0;
+  p->rutime = 0;
+  p->stime = 0;
+  p->average_bursttime = 0;
 }
 
 // Create a user page table for a given process,
@@ -379,6 +394,7 @@ exit(int status)
 
   p->xstate = status;
   p->state = ZOMBIE;
+  p->ttime = ticks;
 
   release(&wait_lock);
 
@@ -411,6 +427,61 @@ wait(uint64 addr)
           // Found one.
           pid = np->pid;
           if(addr != 0 && copyout(p->pagetable, addr, (char *)&np->xstate,
+                                  sizeof(np->xstate)) < 0) {
+            release(&np->lock);
+            release(&wait_lock);
+            return -1;
+          }
+          freeproc(np);
+          release(&np->lock);
+          release(&wait_lock);
+          return pid;
+        }
+        release(&np->lock);
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if(!havekids || p->killed){
+      release(&wait_lock);
+      return -1;
+    }
+    
+    // Wait for a child to exit.
+    sleep(p, &wait_lock);  //DOC: wait-sleep
+  }
+}
+
+int
+wait_stat(int *addr, struct perf *performance)
+{
+  struct proc *np;
+  int havekids, pid;
+  struct proc *p = myproc();
+
+  acquire(&wait_lock);
+
+  for(;;){
+    // Scan through table looking for exited children.
+    havekids = 0;
+    for(np = proc; np < &proc[NPROC]; np++){
+      if(np->parent == p){
+        // make sure the child isn't still in exit() or swtch().
+        acquire(&np->lock);
+
+        havekids = 1;
+        if(np->state == ZOMBIE){
+          
+          //update performance
+          performance->ctime = np->ctime;
+          performance->ttime = np->ttime;
+          performance->retime = np->retime;
+          performance->rutime = np->rutime;
+          performance->average_bursttime = np->average_bursttime;
+
+          // Found one.
+          pid = np->pid;
+          if(addr != 0 && copyout(p->pagetable, (uint64)addr, (char *)&np->xstate,
                                   sizeof(np->xstate)) < 0) {
             release(&np->lock);
             release(&wait_lock);
@@ -682,3 +753,21 @@ procdump(void)
     printf("\n");
   }
 }
+
+void
+incPerformanceFields(void) {
+  struct proc *p;
+
+  for( p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->state == RUNNING) 
+      p->rutime++;
+    if(p->state == SLEEPING)
+      p->stime++;
+    if(p->state == RUNNABLE)
+      p->retime++;
+    release(&p->lock);
+  }
+}
+
+

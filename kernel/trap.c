@@ -6,6 +6,8 @@
 #include "proc.h"
 #include "defs.h"
 
+extern void incPerformanceFields(void);
+
 struct spinlock tickslock;
 uint ticks;
 
@@ -205,6 +207,7 @@ devintr()
     // forwarded by timervec in kernelvec.S.
 
     if(cpuid() == 0){
+      incPerformanceFields();
       clockintr();
     }
     

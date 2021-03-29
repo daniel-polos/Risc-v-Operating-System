@@ -97,6 +97,14 @@ struct proc {
   // proc_tree_lock must be held when using this:
   struct proc *parent;         // Parent process
 
+  //performance fields
+  int ctime;
+  int ttime;
+  int stime;
+  int retime;
+  int rutime;
+  int average_bursttime;
+
   // these are private to the process, so p->lock need not be held.
   uint64 kstack;               // Virtual address of kernel stack
   uint64 sz;                   // Size of process memory (bytes)
@@ -106,4 +114,13 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+};
+
+struct perf {
+  int ctime;                   //creation time
+  int ttime;                   //termination time
+  int stime;                   //sleeping time
+  int retime;                  //tunnable time
+  int rutime;                  //running time
+  int average_bursttime;
 };
