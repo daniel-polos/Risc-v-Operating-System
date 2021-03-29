@@ -458,7 +458,6 @@ wait_stat(int *addr, struct perf *performance)
   struct proc *np;
   int havekids, pid;
   struct proc *p = myproc();
-
   acquire(&wait_lock);
 
   for(;;){
@@ -471,22 +470,25 @@ wait_stat(int *addr, struct perf *performance)
 
         havekids = 1;
         if(np->state == ZOMBIE){
-          
-          //update performance
-          performance->ctime = np->ctime;
-          performance->ttime = np->ttime;
-          performance->retime = np->retime;
-          performance->rutime = np->rutime;
-          performance->average_bursttime = np->average_bursttime;
-
-          // Found one.
-          pid = np->pid;
-          if(addr != 0 && copyout(p->pagetable, (uint64)addr, (char *)&np->xstate,
-                                  sizeof(np->xstate)) < 0) {
+          if (copyout(p->pagetable, (uint64)performance, (char *)&np->ctime,
+                24) < 0)
+          {
             release(&np->lock);
             release(&wait_lock);
             return -1;
           }
+          //printf("performance: ctime:%d, retime:%d, rutime:%d, ttime:%d",
+          //performance->ctime, performance->retime, performance->rutime, performance->ttime);
+          pid = np->pid;
+          if(addr != 0 && copyout(p->pagetable, *addr,
+           (char *)&np->xstate, sizeof(np->xstate)) < 0) 
+          {
+    
+            release(&np->lock);
+            release(&wait_lock);
+            return -1;
+          }
+
           freeproc(np);
           release(&np->lock);
           release(&wait_lock);
@@ -760,12 +762,15 @@ incPerformanceFields(void) {
 
   for( p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
-    if(p->state == RUNNING) 
+    if(p->state == RUNNING)
       p->rutime++;
-    if(p->state == SLEEPING)
+    
+    else if(p->state == SLEEPING)
       p->stime++;
-    if(p->state == RUNNABLE)
+      
+    else if(p->state == RUNNABLE) 
       p->retime++;
+       
     release(&p->lock);
   }
 }

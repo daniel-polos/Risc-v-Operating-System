@@ -49,6 +49,10 @@ sys_wait_stat(void)
   if(argaddr(1, (uint64*) &performance) < 0)
     return -1;
   
+  // //debug
+  // printf("accessing performance ctime\n");
+  // int x = performance->ctime;
+  //printf("%d", x );
   return wait_stat((int*)&status, performance);
 }
 

@@ -207,6 +207,8 @@ devintr()
     // forwarded by timervec in kernelvec.S.
 
     if(cpuid() == 0){
+        //debug
+      //printf("calling to incPerformanceFields\n");
       incPerformanceFields();
       clockintr();
     }
