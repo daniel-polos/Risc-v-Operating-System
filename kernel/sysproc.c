@@ -86,7 +86,7 @@ sys_kill(void)
 uint64
 sys_trace(void)
 {
-  printf("inside sys_trace");
+  printf("inside sys_trace\n");
   int pid;
   int mask;
 
@@ -95,9 +95,6 @@ sys_trace(void)
   if(argint(0, &mask) < 0)
     return -1;
   
-  //debug
-  printf("pid: %d", pid);
-  printf("mask: %d", mask);
   return trace(mask, pid);
 }
 

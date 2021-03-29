@@ -163,10 +163,10 @@ syscall(void)
   int num;
   struct proc *p = myproc();
   int arg = 0;
-
   num = p->trapframe->a7;
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
     arg = p->trapframe->a0;
+    //printf("arg: %d\n", arg);
     p->trapframe->a0 = syscalls[num]();
   } else {
     printf("%d %s: unknown sys call %d\n",
@@ -174,19 +174,18 @@ syscall(void)
     p->trapframe->a0 = -1;
   }
   
-  if((p->tracemask >> num) && (p->to_trace)) {
-    printf("inside cond");
+  if(((p->tracemask >> num) & 1) && (p->to_trace)) {
     switch(num){
       case SYS_fork: 
         printf("%d: syscall %s NULL-> %d\n", 
         p->pid, syscallnames[num], p->trapframe->a0);
         break;
       case SYS_kill: 
-         printf("%d: syscall %s %s-> %d\n", 
+         printf("%d: syscall %s %d-> %d\n", 
         p->pid, syscallnames[num], arg, p->trapframe->a0);
         break;
       case SYS_sbrk: 
-        printf("%d: syscall %s %s-> %d\n", 
+        printf("%d: syscall %s %d-> %d\n", 
         p->pid, syscallnames[num], arg, p->trapframe->a0);
         break;
       default: 
