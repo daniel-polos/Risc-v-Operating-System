@@ -6,6 +6,9 @@
 #include "proc.h"
 #include "defs.h"
 
+enum sched_flags {DEFAULT, FCFS, STR, CFSD};
+extern enum sched_flags SCHEDFLAG;
+
 extern void incPerformanceFields(void);
 
 struct spinlock tickslock;
@@ -79,8 +82,12 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  if(ticks % QUANTUM == 0 && which_dev == 2 && SCHEDFLAG != FCFS)
+  {
+    //debug
+    printf("yielding, ticks: %d\n", ticks);
     yield();
+  }
 
   usertrapret();
 }
@@ -152,20 +159,25 @@ kerneltrap()
   }
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING)
+  if(ticks % QUANTUM == 0 && which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING && SCHEDFLAG != FCFS)
+  {
+    //debug
+    printf("yielding, ticks: %d\n", ticks);
     yield();
-
+  }
   // the yield() may have caused some traps to occur,
   // so restore trap registers for use by kernelvec.S's sepc instruction.
   w_sepc(sepc);
   w_sstatus(sstatus);
 }
+  
 
 void
 clockintr()
 {
   acquire(&tickslock);
   ticks++;
+  //printf("ticks: %d\n", ticks);
   wakeup(&ticks);
   release(&tickslock);
 }
@@ -207,8 +219,6 @@ devintr()
     // forwarded by timervec in kernelvec.S.
 
     if(cpuid() == 0){
-        //debug
-      //printf("calling to incPerformanceFields\n");
       incPerformanceFields();
       clockintr();
     }
@@ -222,4 +232,5 @@ devintr()
     return 0;
   }
 }
+
 

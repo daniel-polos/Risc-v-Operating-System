@@ -96,6 +96,7 @@ struct cpu*     getmycpu(void);
 struct proc*    myproc();
 void            procinit(void);
 void            scheduler(void) __attribute__((noreturn));
+void            updateAverageBursttime(struct proc *p);
 void            sched(void);
 void            setproc(struct proc*);
 void            sleep(void*, struct spinlock*);
@@ -108,6 +109,8 @@ int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
 int             trace(int, int);
 int             wait_stat(int*, struct perf*);
+int             set_priority(int);
+float           calculate_ratio(struct proc*);
 
 // swtch.S
 void            swtch(struct context*, struct context*);

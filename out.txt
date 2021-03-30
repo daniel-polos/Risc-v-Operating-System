@@ -1,0 +1,1967 @@
+rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
+*/*.o */*.d */*.asm */*.sym \
+user/initcode user/initcode.out kernel/kernel fs.img \
+mkfs/mkfs .gdbinit \
+        user/usys.S \
+user/_cat user/_echo user/_forktest user/_grep user/_init user/_kill user/_ln user/_ls user/_mkdir user/_rm user/_sh user/_stressfs user/_usertests user/_grind user/_wc user/_zombie user/_test 
+riscv64-unknown-elf-gcc    -c -o kernel/entry.o kernel/entry.S
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/start.o kernel/start.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/console.o kernel/console.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/printf.o kernel/printf.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/uart.o kernel/uart.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/kalloc.o kernel/kalloc.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/spinlock.o kernel/spinlock.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/string.o kernel/string.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/main.o kernel/main.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/vm.o kernel/vm.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/proc.o kernel/proc.c
+riscv64-unknown-elf-gcc    -c -o kernel/swtch.o kernel/swtch.S
+riscv64-unknown-elf-gcc    -c -o kernel/trampoline.o kernel/trampoline.S
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/trap.o kernel/trap.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/syscall.o kernel/syscall.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/sysproc.o kernel/sysproc.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/bio.o kernel/bio.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/fs.o kernel/fs.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/log.o kernel/log.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/sleeplock.o kernel/sleeplock.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/file.o kernel/file.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/pipe.o kernel/pipe.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/exec.o kernel/exec.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/sysfile.o kernel/sysfile.c
+riscv64-unknown-elf-gcc    -c -o kernel/kernelvec.o kernel/kernelvec.S
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/plic.o kernel/plic.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/virtio_disk.o kernel/virtio_disk.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie -march=rv64g -nostdinc -I. -Ikernel -c user/initcode.S -o user/initcode.o
+riscv64-unknown-elf-ld -z max-page-size=4096 -N -e start -Ttext 0 -o user/initcode.out user/initcode.o
+riscv64-unknown-elf-objcopy -S -O binary user/initcode.out user/initcode
+riscv64-unknown-elf-objdump -S user/initcode.o > user/initcode.asm
+riscv64-unknown-elf-ld -z max-page-size=4096 -T kernel/kernel.ld -o kernel/kernel kernel/entry.o kernel/start.o kernel/console.o kernel/printf.o kernel/uart.o kernel/kalloc.o kernel/spinlock.o kernel/string.o kernel/main.o kernel/vm.o kernel/proc.o kernel/swtch.o kernel/trampoline.o kernel/trap.o kernel/syscall.o kernel/sysproc.o kernel/bio.o kernel/fs.o kernel/log.o kernel/sleeplock.o kernel/file.o kernel/pipe.o kernel/exec.o kernel/sysfile.o kernel/kernelvec.o kernel/plic.o kernel/virtio_disk.o 
+riscv64-unknown-elf-objdump -S kernel/kernel > kernel/kernel.asm
+riscv64-unknown-elf-objdump -t kernel/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > kernel/kernel.sym
+gcc -Werror -Wall -I. -o mkfs/mkfs mkfs/mkfs.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o user/cat.o user/cat.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o user/ulib.o user/ulib.c
+perl user/usys.pl > user/usys.S
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie -c -o user/usys.o user/usys.S
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o user/printf.o user/printf.c
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o user/umalloc.o user/umalloc.c
+riscv64-unknown-elf-ld -z max-page-size=4096 -N -e main -Ttext 0 -o user/_cat user/cat.o user/ulib.o user/usys.o user/printf.o user/umalloc.o
+riscv64-unknown-elf-objdump -S user/_cat > user/cat.asm
+riscv64-unknown-elf-objdump -t user/_cat | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > user/cat.sym
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o user/echo.o user/echo.c
+riscv64-unknown-elf-ld -z max-page-size=4096 -N -e main -Ttext 0 -o user/_echo user/echo.o user/ulib.o user/usys.o user/printf.o user/umalloc.o
+riscv64-unknown-elf-objdump -S user/_echo > user/echo.asm
+riscv64-unknown-elf-objdump -t user/_echo | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > user/echo.sym
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o user/forktest.o user/forktest.c
+# forktest has less library code linked in - needs to be small
+# in order to be able to max out the proc table.
+riscv64-unknown-elf-ld -z max-page-size=4096 -N -e main -Ttext 0 -o user/_forktest user/forktest.o user/ulib.o user/usys.o
+riscv64-unknown-elf-objdump -S user/_forktest > user/forktest.asm
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o user/grep.o user/grep.c
+riscv64-unknown-elf-ld -z max-page-size=4096 -N -e main -Ttext 0 -o user/_grep user/grep.o user/ulib.o user/usys.o user/printf.o user/umalloc.o
+riscv64-unknown-elf-objdump -S user/_grep > user/grep.asm
+riscv64-unknown-elf-objdump -t user/_grep | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > user/grep.sym
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o user/init.o user/init.c
+riscv64-unknown-elf-ld -z max-page-size=4096 -N -e main -Ttext 0 -o user/_init user/init.o user/ulib.o user/usys.o user/printf.o user/umalloc.o
+riscv64-unknown-elf-objdump -S user/_init > user/init.asm
+riscv64-unknown-elf-objdump -t user/_init | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > user/init.sym
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o user/kill.o user/kill.c
+riscv64-unknown-elf-ld -z max-page-size=4096 -N -e main -Ttext 0 -o user/_kill user/kill.o user/ulib.o user/usys.o user/printf.o user/umalloc.o
+riscv64-unknown-elf-objdump -S user/_kill > user/kill.asm
+riscv64-unknown-elf-objdump -t user/_kill | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > user/kill.sym
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o user/ln.o user/ln.c
+riscv64-unknown-elf-ld -z max-page-size=4096 -N -e main -Ttext 0 -o user/_ln user/ln.o user/ulib.o user/usys.o user/printf.o user/umalloc.o
+riscv64-unknown-elf-objdump -S user/_ln > user/ln.asm
+riscv64-unknown-elf-objdump -t user/_ln | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > user/ln.sym
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o user/ls.o user/ls.c
+riscv64-unknown-elf-ld -z max-page-size=4096 -N -e main -Ttext 0 -o user/_ls user/ls.o user/ulib.o user/usys.o user/printf.o user/umalloc.o
+riscv64-unknown-elf-objdump -S user/_ls > user/ls.asm
+riscv64-unknown-elf-objdump -t user/_ls | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > user/ls.sym
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o user/mkdir.o user/mkdir.c
+riscv64-unknown-elf-ld -z max-page-size=4096 -N -e main -Ttext 0 -o user/_mkdir user/mkdir.o user/ulib.o user/usys.o user/printf.o user/umalloc.o
+riscv64-unknown-elf-objdump -S user/_mkdir > user/mkdir.asm
+riscv64-unknown-elf-objdump -t user/_mkdir | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > user/mkdir.sym
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o user/rm.o user/rm.c
+riscv64-unknown-elf-ld -z max-page-size=4096 -N -e main -Ttext 0 -o user/_rm user/rm.o user/ulib.o user/usys.o user/printf.o user/umalloc.o
+riscv64-unknown-elf-objdump -S user/_rm > user/rm.asm
+riscv64-unknown-elf-objdump -t user/_rm | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > user/rm.sym
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o user/sh.o user/sh.c
+riscv64-unknown-elf-ld -z max-page-size=4096 -N -e main -Ttext 0 -o user/_sh user/sh.o user/ulib.o user/usys.o user/printf.o user/umalloc.o
+riscv64-unknown-elf-objdump -S user/_sh > user/sh.asm
+riscv64-unknown-elf-objdump -t user/_sh | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > user/sh.sym
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o user/stressfs.o user/stressfs.c
+riscv64-unknown-elf-ld -z max-page-size=4096 -N -e main -Ttext 0 -o user/_stressfs user/stressfs.o user/ulib.o user/usys.o user/printf.o user/umalloc.o
+riscv64-unknown-elf-objdump -S user/_stressfs > user/stressfs.asm
+riscv64-unknown-elf-objdump -t user/_stressfs | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > user/stressfs.sym
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o user/usertests.o user/usertests.c
+riscv64-unknown-elf-ld -z max-page-size=4096 -N -e main -Ttext 0 -o user/_usertests user/usertests.o user/ulib.o user/usys.o user/printf.o user/umalloc.o
+riscv64-unknown-elf-objdump -S user/_usertests > user/usertests.asm
+riscv64-unknown-elf-objdump -t user/_usertests | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > user/usertests.sym
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o user/grind.o user/grind.c
+riscv64-unknown-elf-ld -z max-page-size=4096 -N -e main -Ttext 0 -o user/_grind user/grind.o user/ulib.o user/usys.o user/printf.o user/umalloc.o
+riscv64-unknown-elf-objdump -S user/_grind > user/grind.asm
+riscv64-unknown-elf-objdump -t user/_grind | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > user/grind.sym
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o user/wc.o user/wc.c
+riscv64-unknown-elf-ld -z max-page-size=4096 -N -e main -Ttext 0 -o user/_wc user/wc.o user/ulib.o user/usys.o user/printf.o user/umalloc.o
+riscv64-unknown-elf-objdump -S user/_wc > user/wc.asm
+riscv64-unknown-elf-objdump -t user/_wc | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > user/wc.sym
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o user/zombie.o user/zombie.c
+riscv64-unknown-elf-ld -z max-page-size=4096 -N -e main -Ttext 0 -o user/_zombie user/zombie.o user/ulib.o user/usys.o user/printf.o user/umalloc.o
+riscv64-unknown-elf-objdump -S user/_zombie > user/zombie.asm
+riscv64-unknown-elf-objdump -t user/_zombie | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > user/zombie.sym
+riscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o user/test.o user/test.c
+riscv64-unknown-elf-ld -z max-page-size=4096 -N -e main -Ttext 0 -o user/_test user/test.o user/ulib.o user/usys.o user/printf.o user/umalloc.o
+riscv64-unknown-elf-objdump -S user/_test > user/test.asm
+riscv64-unknown-elf-objdump -t user/_test | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > user/test.sym
+mkfs/mkfs fs.img path README user/_cat user/_echo user/_forktest user/_grep user/_init user/_kill user/_ln user/_ls user/_mkdir user/_rm user/_sh user/_stressfs user/_usertests user/_grind user/_wc user/_zombie user/_test 
+nmeta 46 (boot, super, log blocks 30 inode blocks 13, bitmap blocks 1) blocks 954 total 1000
+balloc: first 637 blocks have been allocated
+balloc: write bitmap block at sector 45
+qemu-system-riscv64 -machine virt -bios none -kernel kernel/kernel -m 128M -smp 3 -nographic -drive file=fs.img,if=none,format=raw,id=x0 -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
+
+xv6 kernel is booting
+
+hart 2 starting
+hart 1 starting
+init: starting sh
+$ ts  test
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+insidinsie fode r
+inside for
+inside for
+insidfor
+e for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside forin
+side for
+inside for
+inside for
+inside for
+inside for
+inside for
+insiinside for
+inside foryielding, ticks: 445
+
+inside for
+insdyielding, ticks: 0
+e for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+iide for
+inside for
+inside fnside foror
+inside for
+inside for
+inside 
+inside forfor
+inside for
+i
+insidnside for
+inside for
+inside for
+inside for
+inside for
+iensid fe for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+ior
+innssidide for
+e for
+inside for
+inside inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+finside for
+or
+inside for
+inside for
+iinside for
+insidensi de for
+inside fofor
+inside r
+inside for
+ifor
+inside for
+inside for
+insnsideide for
+inside for
+inside f for
+insideor
+ins for
+insidide for
+insidee  for
+ifnor
+inside for
+inside for
+insideside for
+inside for
+inside for
+insi for
+inside for
+insidede fo for
+insri
+insidde for
+inse for
+inyielding, ticks: 5
+ide yielding, ticks: 0
+for
+inssiidde for
+e insifde for
+ior
+ninsideside for
+inside  foforr
+insi
+insdide foer 
+fior
+nside for
+inside for
+ininsides fidoe for
+inside for
+inside for
+ri
+innsisde for
+iide nsidfe for
+inside foorr
+
+insideinside for
+i nsfiode fror
+inside f
+or
+inside for
+iinside fnside or
+fori
+insiden fsiode for
+inside forr
+inside for
+in
+inside for
+inside for
+insidse for
+inide for
+inside for
+inside foside fr
+insior
+insidde efor
+ for
+insideinside f for
+inside for
+inoside for
+inside for
+insride 
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+insifde for
+insiode for
+insr
+inside for
+inside for
+inside for
+inside for
+iide for
+inside for
+innside for
+inside fsor
+inside ide fyielding, ticks: 5
+or
+inside for
+inside forfor
+inside for
+inside for
+inside for
+inside for
+
+yielding, ticks: 0
+inside for
+insiinsidede for for
+inside for
+inside fo
+insr
+ide insfoide for
+inside for
+inside r
+insfor
+ide forinside for
+inside for
+inside for
+inside
+ forins
+inside for
+inside for
+iniside de for
+inside for
+inside for
+inside forfor
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+i
+inside for
+inside for
+inside fornside for
+inside for
+inside for
+inside for
+inside f
+or
+inside for
+inside for
+inside foir
+inside for
+inside for
+inside nsfor
+inside for
+inside foidr
+inside for
+inside for
+inside for
+ine side fofr
+inside for
+inside for
+inside for
+inor
+inside foside for
+inside for
+r
+iinside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+insniyieldingde f, ticks: 5
+or
+inside fosr
+insideide for
+insi for
+ide fnsidore for
+ins
+insidei for
+insidde for
+insidee for
+inside for
+ insfiodre for
+
+inside foir
+insidne fsior
+insidede  ffor
+oinside fr
+ior
+insidens for
+insideide f for
+inosr
+iiden side for
+inside ffor
+inside foor
+inside for
+insrid
+ei nfor
+iside for
+inside for
+inside for
+inside for
+inside for
+insinside for
+insided for
+inside for
+inside foe for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside r
+inside for
+inside for
+inside for
+inside for
+inside ffyielding, ticks: 5
+or
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+or
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside foinside for
+insidr
+inside for
+inside for
+inside for
+ie for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+nside for
+ininside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+insiside for
+inside for
+insidde for
+ie for
+insidne for
+iside fnsideo for
+inside for
+inside rfor
+inside fo
+r
+inside for
+iinside for
+inside for
+inside for
+inside for
+inside nfor
+isnside for
+iniside for
+insidde for
+inside for
+inside for
+inside for
+inside for
+inside fe for
+insor
+inside for
+inside for
+iinsiddee for
+inside for
+inside f for
+inside for
+inside for
+inside for
+insidoe for
+ri
+insidne for
+isnisdide foer f
+inside foor
+r
+insidein forside for
+inside for
+i
+inside for
+inside for
+insidnsieyielding, ticks: 5
+ yielding, ticks: 0
+dfor
+ineside for
+inside for
+i nside ffor
+insior
+inside fde for
+inside for
+insior
+indside for
+insidee for
+inside for
+insid for
+inside fore
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+insid for
+inside for
+inside fore for
+inside for
+inside for
+
+inside for
+inside for
+inside for
+insidinside for
+inside for
+inside for
+inside for
+ie for
+inside for
+inside for
+insnside for
+inside for
+inside for
+insidide for
+ineside for
+inside for
+inside for
+i for
+inside for
+inside fnorsid
+inside e for
+inside for
+ifnside for
+inside for
+inside foror
+inside for
+inside for
+inside for
+inside for
+inside
+ins for
+inside for
+inside foide r
+inside foryi
+elding, ticks: 5
+iforyieldin
+g, ticks: 0
+iyielding, ticks: 0
+nside for
+inside for
+inside nfor
+insideside for
+inside for
+inside  for
+ifor
+inside for
+inside for
+nsinside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+insiide for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside dfe for
+inside for
+inside for
+orinside for
+inside
+inside for
+ins foir
+inside fode for
+inside for
+inside for
+inside for
+insidr
+inside for
+inside for
+inside for
+inside for
+inside for
+inside e for
+inside forfo
+inside fr
+inside for
+inside for
+inside foor
+insidre for
+inside for
+inside for
+inside 
+fionside for
+ir
+insinde for
+inside for
+inside for
+inside fyielding, ticks: 5
+or
+insiyielding, ticks: 0
+des for
+inside for
+iide for
+inside forn
+side for
+insidein side for
+ifonr
+side for
+inside for
+inside for
+inside for
+inside for
+inside fior
+nside for
+iinside for
+inside for
+nside inside for
+inside for
+inside for
+inside for
+insfor
+ide for
+inside for
+inside for
+inside for
+inside for
+inside for
+insideins for
+iidnside foe forr
+insid
+ein fors
+iidenside  fofor
+ri
+nside foir
+nside fior
+insidneside for
+inside for
+inside for
+insi for
+de fori
+inside for
+inside for
+insidenside for
+insi de fofr
+insidor
+ie for
+inside for
+nside for
+inside foinside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+insider
+inside for
+inside f for
+inside foor
+inr
+yielding, ticks: 5
+inside for
+inside for
+inside for
+inside for
+insisyielding, ticks: 0
+ide for
+ide for
+nsidinside foe for
+inside for
+inside fr
+insior
+de forinside fo
+inside for
+inr
+inside forside for
+inside f
+inoside for
+insidr
+insie fode forr
+inside for
+inside for
+inside for
+inside for
+inside for
+i
+innsideside for for
+inside 
+for
+inside for
+insidinside for
+inside for
+inside for
+inside fe for
+or
+inside for
+iinside for
+innsisidde for
+ie for
+inside for
+inside for
+inside forns
+inside foider
+in fosidre for
+
+insideinside for
+inside f for
+inside for
+inside for
+inside foryielding, ticks: 5
+
+insioyielding, ticks: 0
+deryielding, ticks: 0
+
+inside for
+inside  for
+inside forfor
+inside f
+inside foor
+inside fr
+inside for
+insor
+inside for
+inside forid
+ein foside r
+ifor
+insindeside for
+ for
+insiinsdeid e for
+ifor
+inside for
+nisidenside  for
+insfor
+iinsiddee  fforor
+
+insidinside foe forr
+i
+insnisidde for
+einside for
+inside fo r
+insfoider
+insid for
+inside for
+insie fode rfor
+inside f
+ior
+innside fside foor
+inr
+iside fnside foror
+in
+sidie for
+insidne for
+inside forside for
+inside for
+inside fo
+irnside for
+inside for
+insideyielding, ticks: 5
+
+yielding, ticks: 0
+ for
+inside forin
+side for
+inside inside for
+insidyielding, ticks: 0
+for
+inside fyielding, ticks: 0
+or
+inside fore for
+ins
+insideide f or
+finsoide for
+inside for
+inside fr
+or
+inside fior
+inside fonr
+inside for
+inside for
+inside for
+insisidede for
+inside for 
+inside for
+insidfor
+ei for
+insnide for
+insidside for
+insiede f foor
+irn
+insides ifor
+indside for
+inside for
+e for
+insiinside for
+inde for
+inside for
+inside for
+insideside for
+inside for
+i for
+insinside for
+inside for
+inside for
+insidede for
+inside for
+inside for for
+inside for
+inside for
+inside for
+
+inside for
+inside for
+inside for
+iyielding, ticks: 5
+iyielding, ticks: 0
+nside for
+inside for
+innside for
+inside for
+inside for
+side for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+iniside fonside for
+inside for
+inside for
+inside foryielding, ticks: 0
+
+inside for
+inside for
+ir
+inside fnside for
+inor
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+insiside for
+inside for
+inside fode for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+insir
+inside for
+inside for
+inside for
+inside for
+ide nside foforr
+
+iinsidens for
+insideide for
+in for
+insiside forde for
+inside fo
+ir
+inside for
+inside fnsorid
+inside for
+inside for
+insie for
+inside for
+insidede for
+insi fde for
+inside for
+inside for
+inside for
+ionside for
+insride for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside f
+ionsri
+de foir
+nside for
+inside for
+inside for
+insiinside for
+ide for
+innside for
+inside for
+inside for
+insiside fodr
+insie ford
+ei for
+insinde foside r
+insfiode r
+infor
+sinsidide for
+ienside fo r
+inside for
+insidfeor
+inside for
+inside for
+inside for
+inside for
+inside for
+insid ef foror
+in
+inside for
+inside for
+inside for
+inside for
+insidside for
+inside for
+ine for
+iside for
+inside fnside for
+insidor
+inse for
+inside ide for
+fionsir
+de insfide for
+orinside for
+inside
+i fonsir
+inde for
+insidsiede for
+i for
+inside for
+inside for
+inside for
+inside for
+innsiside fdore
+in for
+inside forsid
+e for
+iinsiden sfor
+insideide for
+inside for
+inside for
+insid for
+inside for
+inside for
+inside for
+inside for
+inside fe foro
+insir
+inside for
+insde for
+inide forside for
+in
+inside for
+inside for
+inssidei yielding, ticks: 10
+for
+inside for
+inside for
+inside for
+inside fdyielding, ticks: 0
+e for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+insor
+inside for
+inside for
+inside for
+inideside for
+i for
+inside for
+inside for
+inside for
+inside fonside for
+r
+inside for
+inside for
+ininside fosider
+ins foride 
+inside for
+insifor
+ide nsifde for
+inside foror
+
+inside for
+inside for
+ininsiside for
+inside for
+dinside for
+ie for
+insniside for
+inside for
+inside for
+insde for
+iide for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside fonr
+inside for
+isidenside for
+inside f or
+inside ffor
+yielding, ticks: 5
+inside for
+inside for
+inside for
+insoyieldide fing, ticks: 0
+or
+inside for
+inside for
+inside fror
+inside for
+inside for
+inside for
+
+inside for
+inside finsiode for
+ir
+inside for
+inside for
+insidnseide for
+in for
+insside fiodre
+ inside ffor
+or
+inside for
+iinnside sfoider for
+i
+insinside for
+idnsie for
+inside fode r
+insidefor fo
+inside r
+inside ffor
+inside for
+inside for
+insior
+inside fdor
+inside for
+inside for
+inside for
+inside fore for
+inside for
+inside for
+inside f
+inside for
+inside for
+insideor
+ins for
+iidnside fore f
+insior
+inside for
+ide fonside for
+insir
+insde for
+ide for
+insideinside for
+inside for 
+inside for
+inside ffor
+inside for
+or
+insinside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inide for
+insideyielding, ticks: 5
+ for
+insyielding, ticks: 0
+ide siforde for
+inside for
+in
+insisidede for
+inside for
+inside fo for
+insr
+inside ide ffor
+inorside
+inside for
+i fnsidoer
+inside for
+inside  forfor
+i
+inside fornside for
+inside for
+insid
+inse for
+inside foride
+in side ffor
+inside for
+insideo for
+inside for
+insidr
+inside for
+inside for
+insie for
+idenside for
+inside for
+inside for
+inside for
+inside for
+inside fo for
+inside forr
+inside for
+inside fo
+insider
+ins for
+inide for
+iside for
+inside for
+insnside for
+inside fide for
+inside for
+inside for
+iornside for
+i
+innside for
+inside for
+inside for
+insideside  ffor
+inside for
+yielding, ticks: 5
+oyielding, ticks: 0
+r
+iinside for
+nsiinside fdor
+inside feo rf
+oinsidre for
+inside for
+i
+nsiide for
+insindeside for
+inside for
+inside f orf
+inside for
+insoide for
+insirde for
+inside for
+inside for
+in
+iside nsidfe for
+inside for
+insidor
+ine sfide for
+inside for
+insoider for
+inside for
+inside for
+inside for
+inside f
+or
+inside fori
+insnide for
+inside for
+sinside fori
+idenside for
+i nside for
+for
+insinside foidr
+inside for
+inside feor
+ins for
+inside for
+inside for
+inisided for
+insiede for
+i nside yielding,f ticks: o5
+r
+infor
+inside fside for
+inside for
+inside for
+ior
+nsiinsidede for
+ins yielding, ticks: 0
+for
+inside foride for
+inside fo
+ir
+insinsidde foe fr
+inside for
+ior
+insinde side for
+inside for
+inside for
+for
+inside for
+inside for
+inside forinside for
+
+insidinside for
+inside for
+inside fore for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+ins
+iide for
+inside for
+insidenside fo for
+inside r
+insifor
+inside for
+inside for
+inside for
+insde for
+inside for
+ide for
+insinsideide for 
+inside for
+insideforyielding, ticks: 5
+
+inside fo yielding, ticks: 0
+for
+inside for
+inside fr
+inside for
+inside or
+inside ffor
+insideo for
+r
+ininside for
+inside fsoide r
+inside fofro
+insirde for
+
+inside for
+insinidside for
+insidee fo for
+ir
+innside for
+inside for
+iside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside fnor
+inside for
+inside for
+insidside for
+inside for
+inside for
+inside for
+ienside for
+i nside for
+inside for
+forinside for
+inside for
+inside 
+for
+inside for
+inside for
+inside for
+inside for
+inside for
+insidei nside forf
+inside foor
+inside for
+inside for
+inside fror
+inside for
+inside for
+insi
+de for
+inside for
+inside for
+inside for
+insidei for
+inside for
+inside for
+yielding, ticks: 5
+insnyiielding, ticks: 0
+de for
+inside for
+inside for
+inside for
+sidinside for
+inside for
+ineside for
+inside for
+inside for
+insid for
+ine for
+inside for
+inside for
+iside yinside for
+inselding, idticeks: 0
+ for
+inside for
+infor
+insside for
+iindside efor
+inside for
+insi de for
+ifonside for
+inside for
+inside for
+inside for
+rinside for
+inside for
+inside for
+inside
+ foinside for
+insride for
+i
+nisinde for
+inside for
+inside fside for
+or
+inside for
+inside for
+insidie fornside for
+inside for
+inside for
+
+inside for
+inside for
+inside inside for
+inside for
+insfoide fro
+insr
+inside for
+inside for
+insidei for
+indside for
+insie dfeor for
+insid
+ien for
+inside for
+inssiidde e for
+for
+iinsnide for
+insidside for
+insie de for
+infside for
+ionside fror
+inside for
+inside for
+
+inside for
+inside for
+inside fori
+inside for
+inside for
+innsidse for
+ide for
+inside for
+yielding, ticks: 5
+iinside for
+yielding, ticnks: 0
+iside for
+inside for
+insinside for
+indside e for
+inside for
+insfoidr
+inside for
+inside for
+inside fe for
+inside for
+inside for
+oinside for
+insider 
+for
+insiide for
+inside fornside for
+in
+side fori
+inside nfor
+inside for
+insside for
+iinside for
+ide nside for
+inside for
+ifnsidor
+e for
+ininside fors
+iinside def for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside foror
+in
+insside for
+iide for
+insidne fosr
+iidnsidee for
+i for
+innsisde fori
+inside fdoe for
+inside for
+insidre for
+insid
+insidee for
+i for
+inside for
+inside for
+inside for
+inside for
+innsside for
+insidide for
+inside feor
+insideyielding, ticks: 5
+  ffor
+orin
+inside for
+inside forside for
+ins
+insiiddee for
+insid ef orfor
+insyielding, ticks: 0
+ide for
+
+insidinside for
+inside foe r
+inside for
+insidefor
+inside for
+inside for
+inside  for
+inside for
+inside for
+for
+insinside for
+inside for
+insideide  for
+for
+inside for
+inside fori
+inside for
+inside for
+inside fnside for
+inside for
+inside foro
+inside for
+inr
+inside fors
+inside for
+inside for
+inside fori
+inside for
+inside forde for
+inside for
+inside for
+in
+side fior
+innsside fior
+insde for
+inside foride for
+in
+isindse for
+inside for
+insiiyielding, ticks: 5
+de yielding, ticks: 0
+fde for
+ior
+nsinsiide de ffor
+orinside
+in forside f
+insidore
+inside for
+inside f for
+inside for
+inside foor
+insr
+insiide de for
+insifor
+inside for
+inside for
+insidde for
+ine for
+side for
+inside for
+ininside for
+inside for
+inside for
+inside for
+sinside ide for
+insidfor
+ienside for
+inside for
+ins for
+insideide for
+insid for
+inside fore for
+inside for
+inside for
+inside for
+inside
+inside for
+inside for
+insi forde for
+inside for
+inside for
+inside for
+
+inside for
+inside for
+inside for
+insiidnside for
+ine sidfor
+inside for
+inside for
+inside foyielding, ticks: 5
+r
+inside for
+inside foreyielding, ticks: 0
+ for
+insid
+insie for
+insidde for
+inside for
+inside for
+inside for
+e for
+inside for
+inside ifor
+inside for
+inside for
+inside for
+inside for
+inside fornsid
+inside for
+inside for
+ineside for
+inside for
+i nside for
+inside for
+inside for
+inside for
+inside for
+inside fofr
+inside oforr
+in
+side for
+insiide for
+inside for
+insinside fode for
+inside for
+inside for
+insr
+inside for
+inside for
+inside for
+inside for
+iide fnsidor
+ine for
+insidse for
+inside for
+inside for
+insidide for
+inside for
+inside for
+inside for
+inside for
+inside for
+insidee for
+inside for
+inside for
+inside for
+insi for
+inside ford
+inside for
+inside for
+e inside ffor
+inor
+inside for
+isidnside foer
+inside for
+inside for
+inside for
+insi yielding, ticks: 5
+for
+inside for
+inside for
+inde for
+inside for
+insisidde for
+inside for
+inside fore for
+inside for
+inside for
+inside for
+inside f
+inside for
+inor
+inside for
+inside for
+inside for
+inside for
+insidside for
+inside for
+inside foe for
+irn
+isinde for
+inssiide for
+inside for
+inside foder
+inside for
+i for
+innsideside for
+in for
+inside for
+inside for
+inside side for
+insidef for
+oinside for
+inside for
+insidr
+inse for
+inside for
+inside for
+inside for
+idie forn
+insiside for
+inside for
+inside for
+inside for
+inside for
+insidede for
+inside for
+inside for
+inside for
+i nside for
+inside for
+inside for
+inside for
+inside for
+insfori
+inside ford
+inside e fforo
+insider for
+i
+innssidide foryielding, ticks: 5
+
+ei nfsideyielding, ticks: 0
+ for
+oinside for
+insirde for
+in
+sinside ide forfor
+inside fo
+r
+inside for
+iniside nfors
+insidide fe for
+ionside for
+irnside f
+inside for
+inor
+inside fsor
+insiide ftorde
+insid e fofr
+ior
+inside for
+inside fonsidre for
+inside for
+ins
+inisde for
+iidensi for
+ide for
+insnsidee for
+inside for
+inside for
+inside foir
+inside for
+inside for
+inside for
+inside for
+inside ford
+inseide  fofr
+insoidre 
+foinside for
+insider for
+i
+nsiinde for
+inside fosr
+inside for
+inside for
+inside for
+inside for
+insside for
+insiide for
+inside for
+inside for
+inside for
+tinside for
+indside for
+inside for
+inside foe for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+insiyielding, ticks: 5
+de for
+inside for
+inside for
+r
+inside for
+inside for
+inside for
+inside foinside for
+insir
+ide forns
+insidide for
+inside for
+ineside for
+inside for
+i nside forf
+inside for
+
+insidor
+e for
+inside fior
+nsiinside for
+insidede f for
+inside foorr
+inside for
+inside for
+inside fo
+inside for
+inside for
+inside for
+ir
+nside for
+inside for
+inside forinsid
+inside for
+inside for
+ein fside for
+inside for
+inside for
+inside for
+inside for
+insoide forr
+inside for
+ins
+inside for
+inside fide for
+inside for
+insor
+ide for
+insidinsie for
+inde fside foror
+inside f
+ori
+insinde for
+sinside for
+inside foide yielding, ticks: 5
+r
+insidfe for
+inside for
+inside for
+yielding, ticks: 0
+or
+inside for
+insidine fosr
+inside foir
+insde for
+inside for
+inside for
+iide nside for
+inside for
+infside for
+inside for
+inside for
+insidor
+inse for
+insiide for
+inside for
+inside for
+ide fnside foor
+inside for
+inside for
+inside for
+inside for
+inr
+siide for
+insnsiide fode for
+inside for
+r
+iinside for
+insidnside for
+inside for
+ine forside for
+inside for
+inside for
+inside for
+inside for
+inside for
+insid
+inside efor
+inside for
+i fonsider for
+ins
+idei fonr
+isnside for
+inside for
+inside for
+iinside for
+inside for
+inside for
+inside forde fo
+inside for
+inside forr
+insi
+deins for
+inside for
+insidide fe for
+inside for
+inside ofor
+inside for
+inside for
+inside for
+ri
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside for
+inside fyieldoing, ticks: 5
+yieldinng, ticks: 5
+r
+inside for
+inside for
+inside for
+inside for
+insside for
+inside for
+inside for
+inside for
+insidide for
+inside for
+inside for
+inside for
+inse foide for
+inside for
+inside for
+inside for
+insird
+ines fori
+idenside for
+inside for
+inside for
+insi de ffor
+inside for
+inside foror
+
+insidinsie for
+de for
+ininside for
+insidsie for
+inside for
+inside for
+inside for
+inside forde for
+ins
+inside fQEMU: Terminated
+

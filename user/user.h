@@ -26,6 +26,7 @@ int sleep(int);
 int uptime(void);
 int trace(int, int);
 int wait_stat(int*, struct perf*);
+int set_priority(int priority);
 
 
 // ulib.c

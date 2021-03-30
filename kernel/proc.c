@@ -6,6 +6,10 @@
 #include "proc.h"
 #include "defs.h"
 
+enum sched_flags {DEFAULT, FCFS, STR, CFSD};
+enum sched_flags SCHEDFLAG = CFSD;
+
+
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -126,7 +130,14 @@ found:
   p->stime = 0;
   p->retime = 0;
   p->ttime = 0;
-  p->average_bursttime = 0;
+
+  //4.2
+  p->enterToQueue = ticks;
+  //4.3
+  p->average_bursttime = QUANTUM*100;
+  //4.4
+  //the priority of initial process is Normal
+  p->decay_factor = 1;      
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -315,6 +326,9 @@ fork(void)
   //copy trace mask
   np->tracemask = p->tracemask;
   np->to_trace = p->to_trace;
+
+  //copy parent's priority to the child
+  np->decay_factor = p->decay_factor;
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
@@ -519,6 +533,8 @@ wait_stat(int *addr, struct perf *performance)
 void
 scheduler(void)
 {
+  //debug
+  printf("inside scheduler\n");
   struct proc *p;
   struct cpu *c = mycpu();
   
@@ -527,21 +543,96 @@ scheduler(void)
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
-    for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
+    if (SCHEDFLAG == DEFAULT) {
+      for(p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if(p->state == RUNNABLE) {
+        //debug
+        //printf("performing contex switch\n");
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
         // before jumping back to us.
+          p->state = RUNNING;
+          c->proc = p;
+          swtch(&c->context, &p->context);
+
+          // Process is done running for now.
+          // It should have changed its p->state before coming back.
+          c->proc = 0;
+        }
+        release(&p->lock);
+      }
+    }
+    else if(SCHEDFLAG == FCFS)
+    {
+      //debug
+      printf("FLAG IS FCFS\n");
+      struct proc *selectedProc = 0;
+      int min_arrivaltime = ticks;
+      for(p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if(p->state == RUNNABLE && p->enterToQueue < min_arrivaltime)
+        {
+          min_arrivaltime = p->enterToQueue;
+          selectedProc = p;
+        }
+      }
+      if(selectedProc != 0)
+      {
         p->state = RUNNING;
         c->proc = p;
-        swtch(&c->context, &p->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
+        swtch(&c->context, &p->context); 
+        c->proc = 0; 
       }
       release(&p->lock);
+    }
+    else if (SCHEDFLAG == STR)
+    {
+      //debug
+      printf("FLAG IS STR\n");
+      struct proc *selectedProc = 0;
+
+      for(p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if(p->state == RUNNABLE && (selectedProc == 0 || 
+        p->average_bursttime < selectedProc->average_bursttime))
+        {
+          selectedProc = p;
+        }
+      }
+
+      if(selectedProc != 0)
+      {
+        p->state = RUNNING;
+        c->proc = p;
+        swtch(&c->context, &p->context); 
+        c->proc = 0; 
+      }
+      release(&p->lock); 
+    }
+    else if(SCHEDFLAG == CFSD)
+    {
+      //debug
+      printf("FLAG IS CFSD\n");
+      struct proc *selectedProc = 0;
+
+      for(p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if(p->state == RUNNABLE && (selectedProc == 0 || 
+        calculate_ratio(p) < calculate_ratio(selectedProc)))
+        {
+          selectedProc = p;
+        }
+      }
+
+      if(selectedProc != 0)
+      {
+        p->state = RUNNING;
+        c->proc = p;
+        swtch(&c->context, &p->context); 
+        c->proc = 0; 
+      }
+      release(&p->lock); 
     }
   }
 }
@@ -580,6 +671,8 @@ yield(void)
   struct proc *p = myproc();
   acquire(&p->lock);
   p->state = RUNNABLE;
+  p->enterToQueue = ticks; //go to the end of the queue
+  updateAverageBursttime(p);
   sched();
   release(&p->lock);
 }
@@ -626,6 +719,7 @@ sleep(void *chan, struct spinlock *lk)
   p->chan = chan;
   p->state = SLEEPING;
 
+  updateAverageBursttime(p);
   sched();
 
   // Tidy up.
@@ -695,6 +789,35 @@ trace(int mask, int pid)
     release(&p->lock);
   }
   return -1;
+}
+
+int
+set_priority(int priority)
+{
+  if(priority < 1 || priority > 5)
+  {
+    return -1;
+  }
+
+  switch(priority) 
+  {
+    case 1:
+      myproc()->decay_factor = 1;
+      break;
+    case 2:
+      myproc()->decay_factor = 3;
+      break;
+    case 3:
+      myproc()->decay_factor = 5;
+      break;
+    case 4:
+      myproc()->decay_factor = 7;
+      break;
+    case 5:
+      myproc()->decay_factor = 25;
+      break;
+  }
+  return 0;
 }
 
 // Copy to either a user address, or kernel address,
@@ -773,6 +896,19 @@ incPerformanceFields(void) {
        
     release(&p->lock);
   }
+}
+
+void
+updateAverageBursttime(struct proc *p)
+{
+  int B = p->rutime;
+  p->average_bursttime = ALPHA*B + (100-ALPHA)*(p->average_bursttime/100);   
+}
+
+float
+calculate_ratio(struct proc *p)
+{
+  return (float)((p->rutime * p->decay_factor)/(p->rutime + p->stime));
 }
 
 

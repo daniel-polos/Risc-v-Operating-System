@@ -96,6 +96,9 @@ struct proc {
   int to_trace;                // trace flag
   // proc_tree_lock must be held when using this:
   struct proc *parent;         // Parent process
+  int enterToQueue;            //time in ticks the process arrived to the queue
+  //task 4.4
+  int decay_factor;            //decay factor according to priority
 
   //performance fields
   int ctime;
