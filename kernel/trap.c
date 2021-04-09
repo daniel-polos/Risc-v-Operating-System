@@ -6,9 +6,6 @@
 #include "proc.h"
 #include "defs.h"
 
-enum sched_flags {DEFAULT, FCFS, STR, CFSD};
-extern enum sched_flags SCHEDFLAG;
-
 extern void incPerformanceFields(void);
 
 struct spinlock tickslock;
@@ -82,12 +79,14 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(ticks % QUANTUM == 0 && which_dev == 2 && SCHEDFLAG != FCFS)
+  #if defined(DEFAULT) || defined(STR) || defined(CFSD)
+  if(ticks % QUANTUM == 0 && which_dev == 2)
   {
     //debug
     printf("yielding, ticks: %d\n", ticks);
     yield();
   }
+  #endif
 
   usertrapret();
 }
@@ -159,12 +158,14 @@ kerneltrap()
   }
 
   // give up the CPU if this is a timer interrupt.
-  if(ticks % QUANTUM == 0 && which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING && SCHEDFLAG != FCFS)
+  #if defined(DEFAULT) || defined(STR) || defined(CFSD)
+  if(ticks % QUANTUM == 0 && which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING)
   {
     //debug
     printf("yielding, ticks: %d\n", ticks);
     yield();
   }
+  #endif
   // the yield() may have caused some traps to occur,
   // so restore trap registers for use by kernelvec.S's sepc instruction.
   w_sepc(sepc);

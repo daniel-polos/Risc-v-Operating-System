@@ -6,9 +6,10 @@
 #include "proc.h"
 #include "defs.h"
 
-enum sched_flags {DEFAULT, FCFS, STR, CFSD};
-enum sched_flags SCHEDFLAG = CFSD;
-
+struct {
+  struct spinlock lock;
+  struct proc proc[NPROC];
+} ptable;
 
 struct cpu cpus[NCPU];
 
@@ -530,11 +531,12 @@ wait_stat(int *addr, struct perf *performance)
 //  - swtch to start running that process.
 //  - eventually that process transfers control
 //    via swtch back to the scheduler.
+
 void
 scheduler(void)
 {
   //debug
-  printf("inside scheduler\n");
+  //printf("inside scheduler\n");
   struct proc *p;
   struct cpu *c = mycpu();
   
@@ -543,7 +545,68 @@ scheduler(void)
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
-    if (SCHEDFLAG == DEFAULT) {
+    //FCFS scheduling
+#ifdef FCFS
+      //debug
+      //printf("FLAG IS FCFS\n");
+      struct proc *selectedProc = 0;
+      for(p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if((p->state == RUNNABLE && selectedProc == 0) || (p->state == RUNNABLE && p->enterToQueue <= selectedProc->enterToQueue))
+        {
+          selectedProc = p;
+        }
+        release(&p->lock);
+      }
+      if(selectedProc != 0)
+      {
+        acquire(&selectedProc->lock);
+        //debug
+        //printf("select proc to exec\n");
+        selectedProc->state = RUNNING;
+        c->proc = selectedProc;
+        swtch(&c->context, &selectedProc->context); 
+        c->proc = 0; 
+        release(&selectedProc->lock);
+      }
+      //debug
+      //printf("before releasing\n");
+      
+#endif
+
+
+   
+
+    //CFSD scheduling
+#ifdef CFSD
+      //printf("FLAG IS CFSD\n");
+      struct proc *selectedProc = 0;
+
+      for(p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if(p->state == RUNNABLE && (selectedProc == 0 || 
+        calculate_ratio(p) <= calculate_ratio(selectedProc)))
+        {
+          selectedProc = p;
+        }
+        release(&p->lock);
+      }
+
+      if(selectedProc != 0)
+      {
+        acquire(&selectedProc->lock);
+        selectedProc->state = RUNNING;
+        c->proc = selectedProc;
+        swtch(&c->context, &selectedProc->context); 
+        c->proc = 0; 
+        release(&selectedProc->lock);
+      }
+  
+#endif
+
+#ifdef DEFAULT 
+      //debug
+      //printf("FLAG IS DEFAULT\n");
       for(p = proc; p < &proc[NPROC]; p++) {
         acquire(&p->lock);
         if(p->state == RUNNABLE) {
@@ -562,78 +625,38 @@ scheduler(void)
         }
         release(&p->lock);
       }
-    }
-    else if(SCHEDFLAG == FCFS)
-    {
-      //debug
-      printf("FLAG IS FCFS\n");
-      struct proc *selectedProc = 0;
-      int min_arrivaltime = ticks;
-      for(p = proc; p < &proc[NPROC]; p++) {
-        acquire(&p->lock);
-        if(p->state == RUNNABLE && p->enterToQueue < min_arrivaltime)
-        {
-          min_arrivaltime = p->enterToQueue;
-          selectedProc = p;
-        }
-      }
-      if(selectedProc != 0)
-      {
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context); 
-        c->proc = 0; 
-      }
-      release(&p->lock);
-    }
-    else if (SCHEDFLAG == STR)
-    {
-      //debug
-      printf("FLAG IS STR\n");
+#endif
+
+#ifdef STR
+      //printf("FLAG IS STR\n");
+      
       struct proc *selectedProc = 0;
 
-      for(p = proc; p < &proc[NPROC]; p++) {
+      for(p = proc; p < &proc[NPROC]; p++) 
+      {
         acquire(&p->lock);
         if(p->state == RUNNABLE && (selectedProc == 0 || 
-        p->average_bursttime < selectedProc->average_bursttime))
+        p->average_bursttime <= selectedProc->average_bursttime))
         {
           selectedProc = p;
         }
+        //printf("here!\n");
+        release(&p->lock); 
       }
+
 
       if(selectedProc != 0)
       {
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context); 
+        acquire(&selectedProc->lock);
+        selectedProc->state = RUNNING;
+        c->proc = selectedProc;
+        swtch(&c->context, &selectedProc->context); 
         c->proc = 0; 
+        release(&selectedProc->lock);
       }
-      release(&p->lock); 
-    }
-    else if(SCHEDFLAG == CFSD)
-    {
-      //debug
-      printf("FLAG IS CFSD\n");
-      struct proc *selectedProc = 0;
+     
+#endif
 
-      for(p = proc; p < &proc[NPROC]; p++) {
-        acquire(&p->lock);
-        if(p->state == RUNNABLE && (selectedProc == 0 || 
-        calculate_ratio(p) < calculate_ratio(selectedProc)))
-        {
-          selectedProc = p;
-        }
-      }
-
-      if(selectedProc != 0)
-      {
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context); 
-        c->proc = 0; 
-      }
-      release(&p->lock); 
-    }
   }
 }
 
@@ -718,6 +741,7 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
+  p->enterToQueue = ticks;
 
   updateAverageBursttime(p);
   sched();
@@ -764,6 +788,7 @@ kill(int pid)
         // Wake process from sleep().
         p->state = RUNNABLE;
       }
+      p->enterToQueue = ticks;
       release(&p->lock);
       return 0;
     }
@@ -794,6 +819,8 @@ trace(int mask, int pid)
 int
 set_priority(int priority)
 {
+  //debug
+  printf("inside set_priority\n");
   if(priority < 1 || priority > 5)
   {
     return -1;

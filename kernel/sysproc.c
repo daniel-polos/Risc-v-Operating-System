@@ -137,6 +137,8 @@ sys_uptime(void)
 uint64
 sys_set_priority(void)
 {
+  //debug
+  printf("inside sys_set_priority\n");
   int n;
   if(argint(0, &n) < 0)
     return -1;
