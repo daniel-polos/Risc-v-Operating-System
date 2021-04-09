@@ -138,7 +138,7 @@ found:
   p->average_bursttime = QUANTUM*100;
   //4.4
   //the priority of initial process is Normal
-  p->decay_factor = 1;      
+  p->decay_factor = 5;      
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -563,6 +563,7 @@ scheduler(void)
         acquire(&selectedProc->lock);
         //debug
         //printf("select proc to exec\n");
+        selectedProc->lastRunStart = ticks;
         selectedProc->state = RUNNING;
         c->proc = selectedProc;
         swtch(&c->context, &selectedProc->context); 
@@ -584,8 +585,8 @@ scheduler(void)
 
       for(p = proc; p < &proc[NPROC]; p++) {
         acquire(&p->lock);
-        if(p->state == RUNNABLE && (selectedProc == 0 || 
-        calculate_ratio(p) <= calculate_ratio(selectedProc)))
+                  
+        if((p->state == RUNNABLE && selectedProc == 0) || (p->state == RUNNABLE && ((p->rutime * p->decay_factor)/(p->rutime + p->stime)) < (selectedProc->rutime * selectedProc->decay_factor)/(selectedProc->rutime + selectedProc->stime)))
         {
           selectedProc = p;
         }
@@ -595,6 +596,7 @@ scheduler(void)
       if(selectedProc != 0)
       {
         acquire(&selectedProc->lock);
+        selectedProc->lastRunStart = ticks;
         selectedProc->state = RUNNING;
         c->proc = selectedProc;
         swtch(&c->context, &selectedProc->context); 
@@ -615,6 +617,7 @@ scheduler(void)
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
         // before jumping back to us.
+          p->lastRunStart = ticks;
           p->state = RUNNING;
           c->proc = p;
           swtch(&c->context, &p->context);
@@ -648,6 +651,7 @@ scheduler(void)
       if(selectedProc != 0)
       {
         acquire(&selectedProc->lock);
+        selectedProc->lastRunStart = ticks;
         selectedProc->state = RUNNING;
         c->proc = selectedProc;
         swtch(&c->context, &selectedProc->context); 
@@ -695,7 +699,8 @@ yield(void)
   acquire(&p->lock);
   p->state = RUNNABLE;
   p->enterToQueue = ticks; //go to the end of the queue
-  updateAverageBursttime(p);
+  int last_run_time = ticks - p->lastRunStart;
+  updateAverageBursttime(p, last_run_time);
   sched();
   release(&p->lock);
 }
@@ -742,8 +747,11 @@ sleep(void *chan, struct spinlock *lk)
   p->chan = chan;
   p->state = SLEEPING;
   p->enterToQueue = ticks;
-
-  updateAverageBursttime(p);
+  //debug
+  //printf("inside sleep\n");
+  int last_run_time = ticks - p->lastRunStart;
+  updateAverageBursttime(p, last_run_time);
+  //updateAverageBursttime(p);
   sched();
 
   // Tidy up.
@@ -926,16 +934,20 @@ incPerformanceFields(void) {
 }
 
 void
-updateAverageBursttime(struct proc *p)
+updateAverageBursttime(struct proc *p, int last_run_time)
 {
-  int B = p->rutime;
-  p->average_bursttime = ALPHA*B + (100-ALPHA)*(p->average_bursttime/100);   
+  p->average_bursttime = ALPHA*last_run_time + (100-ALPHA)*(p->average_bursttime/100);   
 }
 
 float
 calculate_ratio(struct proc *p)
 {
-  return (float)((p->rutime * p->decay_factor)/(p->rutime + p->stime));
+  //debug
+  printf("inside calculate ratio\n");
+  printf("runtime: %d, decay_factor: %d, stime: %d\n", p->rutime, p->decay_factor, p->stime);
+  return (float)(p->rutime * p->decay_factor)/(p->rutime + p->stime);
+  //debug
+  printf("after calculate ratio\n");
 }
 
 

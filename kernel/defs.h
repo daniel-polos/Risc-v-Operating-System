@@ -96,7 +96,7 @@ struct cpu*     getmycpu(void);
 struct proc*    myproc();
 void            procinit(void);
 void            scheduler(void) __attribute__((noreturn));
-void            updateAverageBursttime(struct proc *p);
+void            updateAverageBursttime(struct proc*, int);
 void            sched(void);
 void            setproc(struct proc*);
 void            sleep(void*, struct spinlock*);

@@ -99,7 +99,7 @@ struct proc {
   int enterToQueue;            //time in ticks the process arrived to the queue
   //task 4.4
   int decay_factor;            //decay factor according to priority
-
+  int lastRunStart;            //When the last run of the process started
   //performance fields
   int ctime;
   int ttime;

@@ -91,6 +91,7 @@ int main (int argc, char**argv){
         printf("stime: %d\n", pe.stime);
         printf("retime: %d\n", pe.retime);
         printf("rutime: %d\n", pe.rutime);
+        printf("average: %d\n", pe.average_bursttime);
         // printf("bursttime: %d\n", pe.bursttime); //@TODO
     }
     exit(0);
