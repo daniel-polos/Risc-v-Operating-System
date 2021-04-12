@@ -585,10 +585,27 @@ scheduler(void)
     //CFSD scheduling
 #ifdef CFSD
       struct proc *selectedProc = 0;
-
+      int p_ratio;
+      int selectedProc_ratio;
       for(p = proc; p < &proc[NPROC]; p++) {
         acquire(&p->lock);
-        if((p->state == RUNNABLE && selectedProc == 0) || (p->state == RUNNABLE && ((p->rutime * p->decay_factor)/(p->rutime + p->stime)) < (selectedProc->rutime * selectedProc->decay_factor)/(selectedProc->rutime + selectedProc->stime)))
+        if(p->rutime + p->stime) 
+        {
+          p_ratio =  (p->rutime * p->decay_factor)/(p->rutime + p->stime);
+        }
+        else 
+        {
+          p_ratio = 0;
+        }
+        if(selectedProc && (selectedProc->rutime + selectedProc->stime)) 
+        {
+          selectedProc_ratio =  (selectedProc->rutime * selectedProc->decay_factor)/(selectedProc->rutime + selectedProc->stime);
+        }
+        else 
+        {
+          selectedProc_ratio = 0;
+        }
+        if((p->state == RUNNABLE && selectedProc == 0) || (p->state == RUNNABLE && (p_ratio < selectedProc_ratio)))
         {
           selectedProc = p;
         }
