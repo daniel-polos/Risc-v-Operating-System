@@ -72,8 +72,8 @@ CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 &
 #CFLAGS += -D $(SCHEDFLAG)
 ifeq ($(SCHEDFLAG), FCFS)
 	CFLAGS += -D FCFS
-else ifeq ($(SCHEDFLAG), STR)
-	CFLAGS += -D STR
+else ifeq ($(SCHEDFLAG), SRT)
+	CFLAGS += -D SRT
 else ifeq ($(SCHEDFLAG), CFSD)
 	CFLAGS += -D CFSD
 else 

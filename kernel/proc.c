@@ -649,7 +649,7 @@ scheduler(void)
       }
 #endif
 
-#ifdef STR
+#ifdef SRT
       //printf("FLAG IS STR\n");
       
       struct proc *selectedProc = 0;
