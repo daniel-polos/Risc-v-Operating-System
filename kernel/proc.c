@@ -17,6 +17,9 @@ struct proc proc[NPROC];
 
 struct proc *initproc;
 
+extern struct spinlock tickslock;
+
+
 int nextpid = 1;
 struct spinlock pid_lock;
 
@@ -126,14 +129,19 @@ found:
   p->state = USED;
 
   //initialize performance fields
+  acquire(&tickslock);
   p->ctime = ticks;
+  release(&tickslock);
   p->rutime = 0;
   p->stime = 0;
   p->retime = 0;
   p->ttime = 0;
 
   //4.2
+  acquire(&tickslock);
   p->enterToQueue = ticks;
+  release(&tickslock);
+  
   //4.3
   p->average_bursttime = QUANTUM*100;
   //4.4
@@ -409,7 +417,9 @@ exit(int status)
 
   p->xstate = status;
   p->state = ZOMBIE;
+  acquire(&tickslock);
   p->ttime = ticks;
+  release(&tickslock);
 
   release(&wait_lock);
 
@@ -535,8 +545,6 @@ wait_stat(int *addr, struct perf *performance)
 void
 scheduler(void)
 {
-  //debug
-  //printf("inside scheduler\n");
   struct proc *p;
   struct cpu *c = mycpu();
   
@@ -547,8 +555,6 @@ scheduler(void)
 
     //FCFS scheduling
 #ifdef FCFS
-      //debug
-      //printf("FLAG IS FCFS\n");
       struct proc *selectedProc = 0;
       for(p = proc; p < &proc[NPROC]; p++) {
         acquire(&p->lock);
@@ -561,17 +567,15 @@ scheduler(void)
       if(selectedProc != 0)
       {
         acquire(&selectedProc->lock);
-        //debug
-        //printf("select proc to exec\n");
+        acquire(&tickslock);
         selectedProc->lastRunStart = ticks;
+        release(&tickslock);
         selectedProc->state = RUNNING;
         c->proc = selectedProc;
         swtch(&c->context, &selectedProc->context); 
         c->proc = 0; 
         release(&selectedProc->lock);
       }
-      //debug
-      //printf("before releasing\n");
       
 #endif
 
@@ -580,12 +584,10 @@ scheduler(void)
 
     //CFSD scheduling
 #ifdef CFSD
-      //printf("FLAG IS CFSD\n");
       struct proc *selectedProc = 0;
 
       for(p = proc; p < &proc[NPROC]; p++) {
         acquire(&p->lock);
-                  
         if((p->state == RUNNABLE && selectedProc == 0) || (p->state == RUNNABLE && ((p->rutime * p->decay_factor)/(p->rutime + p->stime)) < (selectedProc->rutime * selectedProc->decay_factor)/(selectedProc->rutime + selectedProc->stime)))
         {
           selectedProc = p;
@@ -596,7 +598,9 @@ scheduler(void)
       if(selectedProc != 0)
       {
         acquire(&selectedProc->lock);
+        acquire(&tickslock);
         selectedProc->lastRunStart = ticks;
+        release(&tickslock);
         selectedProc->state = RUNNING;
         c->proc = selectedProc;
         swtch(&c->context, &selectedProc->context); 
@@ -607,17 +611,15 @@ scheduler(void)
 #endif
 
 #ifdef DEFAULT 
-      //debug
-      //printf("FLAG IS DEFAULT\n");
       for(p = proc; p < &proc[NPROC]; p++) {
         acquire(&p->lock);
         if(p->state == RUNNABLE) {
-        //debug
-        //printf("performing contex switch\n");
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
         // before jumping back to us.
+          acquire(&tickslock);
           p->lastRunStart = ticks;
+          release(&tickslock);
           p->state = RUNNING;
           c->proc = p;
           swtch(&c->context, &p->context);
@@ -639,19 +641,19 @@ scheduler(void)
       {
         acquire(&p->lock);
         if(p->state == RUNNABLE && (selectedProc == 0 || 
-        p->average_bursttime <= selectedProc->average_bursttime))
+        p->average_bursttime < selectedProc->average_bursttime))
         {
           selectedProc = p;
         }
-        //printf("here!\n");
         release(&p->lock); 
       }
-
 
       if(selectedProc != 0)
       {
         acquire(&selectedProc->lock);
+        acquire(&tickslock);
         selectedProc->lastRunStart = ticks;
+        release(&tickslock);
         selectedProc->state = RUNNING;
         c->proc = selectedProc;
         swtch(&c->context, &selectedProc->context); 
@@ -698,8 +700,10 @@ yield(void)
   struct proc *p = myproc();
   acquire(&p->lock);
   p->state = RUNNABLE;
+  acquire(&tickslock);
   p->enterToQueue = ticks; //go to the end of the queue
   int last_run_time = ticks - p->lastRunStart;
+  release(&tickslock);
   updateAverageBursttime(p, last_run_time);
   sched();
   release(&p->lock);
@@ -746,10 +750,10 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
+  acquire(&tickslock);
   p->enterToQueue = ticks;
-  //debug
-  //printf("inside sleep\n");
   int last_run_time = ticks - p->lastRunStart;
+  release(&tickslock);
   updateAverageBursttime(p, last_run_time);
   //updateAverageBursttime(p);
   sched();
@@ -796,7 +800,9 @@ kill(int pid)
         // Wake process from sleep().
         p->state = RUNNABLE;
       }
+      acquire(&tickslock);
       p->enterToQueue = ticks;
+      release(&tickslock);
       release(&p->lock);
       return 0;
     }
@@ -827,8 +833,6 @@ trace(int mask, int pid)
 int
 set_priority(int priority)
 {
-  //debug
-  printf("inside set_priority\n");
   if(priority < 1 || priority > 5)
   {
     return -1;
@@ -936,18 +940,13 @@ incPerformanceFields(void) {
 void
 updateAverageBursttime(struct proc *p, int last_run_time)
 {
-  p->average_bursttime = ALPHA*last_run_time + (100-ALPHA)*(p->average_bursttime/100);   
+  p->average_bursttime = ALPHA*last_run_time + ((100-ALPHA)*(p->average_bursttime/100));   
 }
 
 float
 calculate_ratio(struct proc *p)
 {
-  //debug
-  printf("inside calculate ratio\n");
-  printf("runtime: %d, decay_factor: %d, stime: %d\n", p->rutime, p->decay_factor, p->stime);
-  return (float)(p->rutime * p->decay_factor)/(p->rutime + p->stime);
-  //debug
-  printf("after calculate ratio\n");
+  return (p->rutime * p->decay_factor)/(p->rutime + p->stime);
 }
 
 

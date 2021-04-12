@@ -82,8 +82,6 @@ usertrap(void)
   #if defined(DEFAULT) || defined(STR) || defined(CFSD)
   if(ticks % QUANTUM == 0 && which_dev == 2)
   {
-    //debug
-    printf("yielding, ticks: %d\n", ticks);
     yield();
   }
   #endif
@@ -161,8 +159,6 @@ kerneltrap()
   #if defined(DEFAULT) || defined(STR) || defined(CFSD)
   if(ticks % QUANTUM == 0 && which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING)
   {
-    //debug
-    printf("yielding, ticks: %d\n", ticks);
     yield();
   }
   #endif
