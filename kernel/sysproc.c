@@ -106,3 +106,19 @@ sys_sigprocmask(void)
   
   return sigprocmask(mask);
 }
+
+uint64
+sys_sigaction(void)
+{
+  int signum;
+  struct sigaction *act;
+  struct sigaction *oldact;
+
+  if(argint(0, &signum) < 0 || argaddr(1,(uint64*)&act) < 0 || argaddr(2, (uint64*)&oldact) < 0){
+    return -1;
+  }
+  
+  return sigaction(signum, act, oldact);
+}
+
+

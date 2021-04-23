@@ -617,6 +617,40 @@ sigprocmask(uint mask)
   return old_mask;
 }
 
+int
+sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
+{
+  struct proc *p = myproc();
+
+  if(signum < 0 || signum > 31)
+    return -1;
+
+  //attempting to modify SIGKILL or SIGSTOP will results in an error
+  if(signum == SIGKILL || signum == SIGSTOP)
+    return -1;
+
+  if(act == 0)
+    return -1;
+
+  if(oldact != 0) 
+    oldact = p->signal_handlers[signum];
+
+  memmove(&p->signal_handlers[signum], &act, sizeof(struct sigaction)); 
+  
+/*
+ if(oldact != 0) 
+  {
+    struct sigaction *signum_handler = (struct sigaction*)p->signal_handlers[signum];
+    oldact->sa_handler = signum_handler->sa_handler;
+    oldact->sigmask = signum_handler->sigmask;
+  }
+
+  signum_handler->sa_handler = act->sa_handler;
+  signum_handler->sigmask = act->sigmask;
+*/
+  return 0;
+}
+
 // Copy to either a user address, or kernel address,
 // depending on usr_dst.
 // Returns 0 on success, -1 on error.
