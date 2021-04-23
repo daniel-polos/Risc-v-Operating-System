@@ -121,4 +121,11 @@ sys_sigaction(void)
   return sigaction(signum, act, oldact);
 }
 
+uint64
+sys_sigret(void)
+{
+  sigret();
+  return 0;
+}
+
 

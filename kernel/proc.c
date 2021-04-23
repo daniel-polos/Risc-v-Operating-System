@@ -637,18 +637,16 @@ sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 
   memmove(&p->signal_handlers[signum], &act, sizeof(struct sigaction)); 
   
-/*
- if(oldact != 0) 
-  {
-    struct sigaction *signum_handler = (struct sigaction*)p->signal_handlers[signum];
-    oldact->sa_handler = signum_handler->sa_handler;
-    oldact->sigmask = signum_handler->sigmask;
-  }
-
-  signum_handler->sa_handler = act->sa_handler;
-  signum_handler->sigmask = act->sigmask;
-*/
   return 0;
+}
+
+void
+sigret(void)
+{
+  struct proc *p = myproc();
+  //what about the signals_mask ?????????
+
+  memmove((struct trapframe *)p->trapframe, (struct trapframe *)p->user_tf_backup, sizeof(struct trapframe));
 }
 
 // Copy to either a user address, or kernel address,
