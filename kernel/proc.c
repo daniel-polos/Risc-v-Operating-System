@@ -120,6 +120,15 @@ found:
   p->pid = allocpid();
   p->state = USED;
 
+  // Initialize handlers to be default
+  
+  for (int i = 0; i < 32; i++) {
+    p->signal_handlers[i] = (void*)SIG_DFL;
+  }
+
+  p->signals_mask = 0;
+  p->pending_signals = 0;
+
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
     freeproc(p);
@@ -288,6 +297,13 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
+
+  //copy signals_mask and signals_handlers to child proc
+  for (int i = 0; i < 32; i++){
+    np->signal_handlers[i] = p->signal_handlers[i];
+  }
+
+  np->signals_mask = p->signals_mask;
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
@@ -594,6 +610,15 @@ kill(int pid)
     release(&p->lock);
   }
   return -1;
+}
+
+uint
+sigprocmask(uint mask)
+{
+  struct proc *p = myproc();
+  uint old_mask = p->signals_mask;
+  p->signals_mask = mask;
+  return old_mask;
 }
 
 // Copy to either a user address, or kernel address,
