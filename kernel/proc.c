@@ -122,9 +122,7 @@ found:
 
   // Initialize handlers to be default
   
-  for (int i = 0; i < 32; i++) {
-    p->signal_handlers[i] = (void*)SIG_DFL;
-  }
+  memset(&p->signal_handlers, SIG_DFL, 32);
 
   p->signals_mask = 0;
   p->pending_signals = 0;
@@ -299,9 +297,7 @@ fork(void)
   np->sz = p->sz;
 
   //copy signals_mask and signals_handlers to child proc
-  for (int i = 0; i < 32; i++){
-    np->signal_handlers[i] = p->signal_handlers[i];
-  }
+  memmove(&np->signal_handlers, &p->signal_handlers, sizeof(p->signal_handlers));
 
   np->signals_mask = p->signals_mask;
 
