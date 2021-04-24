@@ -645,9 +645,11 @@ void
 sigret(void)
 {
   struct proc *p = myproc();
-  //what about the signals_mask ?????????
-
-  memmove((struct trapframe *)p->trapframe, (struct trapframe *)p->user_tf_backup, sizeof(struct trapframe));
+  copy_tf(p->trapframe, p->user_tf_backup);
+  p->signals_mask = p->signals_mask_backup;
+  p->user_tf_backup = 0;
+  p->signal_handling = 0;
+  //return p->trapframe->eax; // ?????
 }
 
 // Copy to either a user address, or kernel address,
@@ -753,7 +755,7 @@ kernelsignalhandler(int signum) {
   return;
 }
 
-/////////////////////////////////
+/*
 void
 usersignalhandler(struct proc *p, int signum) {
   // 1. jesus WHAT
@@ -785,6 +787,19 @@ usersignalhandler(struct proc *p, int signum) {
 copyout(pagetable_t pagetable, uint64 dstva, char *src, sizeof(struct trapframe));
 }
 
+*/
+
+void
+copy_tf(struct trapframe* dst, struct trapframe* src){
+  memmove(dst, src, sizeof(struct trapframe));
+}
+
+void 
+call_sigret(void)
+{
+sigret();
+}
+
 void
 signalhandler(void)
 {
@@ -794,9 +809,13 @@ signalhandler(void)
     return;
 
   //make sure its not a kernel trap???????
-  acquire(&p->lock);
+
   for(int i = 0; i < 32; i++) {
+    //int signal_ptr= 1 << i;
     //check p->killed????
+    if(p->killed)
+      return;
+
     while(p->stopped) {
       if(is_pending_and_not_masked(SIGKILL) || is_pending_and_not_masked(SIGCONT))
       {
@@ -808,9 +827,7 @@ signalhandler(void)
 
     if(is_pending_and_not_masked(i))
     {
-      struct sigaction *handler = p->signal_handlers[i];
-      switch ((uint64)(handler->sa_handler)) 
-      {
+      switch (i) {
         case SIG_DFL:
           kernelsignalhandler(i);
           break;
@@ -824,9 +841,11 @@ signalhandler(void)
 
         case SIGKILL:
           sigkill_func();
+          break;
         
         case SIG_IGN:
-          break;
+          break;        
+          
         
         //User signal handler
         default:
@@ -838,5 +857,65 @@ signalhandler(void)
   }
   
   release(&p->lock);
+
+}
+
+void
+usersignalhandler(struct proc *p, int signum) {
+  
+  //1
+  char *dst=0; 
+  struct sigaction *handler = p->signal_handlers[signum];
+  uint64 address = (uint64)(handler->sa_handler);
+  //copy the sigaction signal handler from user to kernel
+  copyin(p->pagetable, dst, address, sizeof(uint64));
+  
+  //2
+  //backup mask
+  p->signals_mask_backup = p->signals_mask;
+  //set the current process signal mask to be the signal handler mask
+  p->signals_mask= (uint)handler->sigmask;
+  
+  //3
+  //turn on flag
+  p->signal_handling = 1;
+ 
+  //4
+  //reduce the process trapframe stack pointer by the size of trapframe
+  uint sp_n = p->trapframe->sp - sizeof(struct trapframe);
+  p->user_tf_backup = (struct trapframe*)sp_n;
+   
+  //5 
+  //backup the process trap frame 
+  //copyout?????????
+  copy_tf(p->user_tf_backup, p->trapframe);
+  
+  //6    p->trapframe->X    X=?
+  //update the current process trapframe to point to the signal handler func addr
+  p->trapframe = (uint)handler;
+  
+  //7
+  // call_sigret size
+  uint func_size = (signalhandler - call_sigret);
+  //reduce the trapframe stack pointer by func size
+  p->trapframe->sp = p->trapframe->sp-func_size;
+  
+  //8
+  //copy call_sigret to the process trapframe stack pointer 
+  memmove((void*)(p->trapframe->sp), call_sigret, func_size); // second arg?????
+  
+  //9
+  void* sig_func = (void*)(p->trapframe->sp); //address to function on stack
+  //put at the process a0 register the signal number
+  memmove((void*)(p->trapframe->a0), &signum, 4);
+  //put at the process return address register the new trapframe sp
+  memmove((void*)(p->trapframe->ra), &sig_func, 4);
+  
+  p->signal_handling = 1;
+  return;
+
+
+
+
 
 }

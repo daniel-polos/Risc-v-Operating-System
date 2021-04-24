@@ -119,6 +119,7 @@ struct proc {
   char name[16];               // Process name (debugging)
   uint pending_signals;        
   uint signals_mask;
+  uint signals_mask_backup;
   void* signal_handlers[32];
   struct trapframe *user_tf_backup;
   volatile int stopped;

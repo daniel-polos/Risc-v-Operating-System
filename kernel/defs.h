@@ -9,6 +9,7 @@ struct sleeplock;
 struct stat;
 struct superblock;
 struct sigaction;
+struct trapframe;
 
 // bio.c
 void            binit(void);
@@ -113,6 +114,7 @@ int             is_pending_and_not_masked(int);
 void            signalhandler(void);
 void            kernelsignalhandler(int);
 void            usersignalhandler(struct proc*, int);
+void            copy_tf(struct trapframe*, struct trapframe*);
 // swtch.S
 void            swtch(struct context*, struct context*);
 
