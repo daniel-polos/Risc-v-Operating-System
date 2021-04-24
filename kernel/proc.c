@@ -298,9 +298,13 @@ fork(void)
   np->sz = p->sz;
 
   //copy signals_mask and signals_handlers to child proc
-  memmove(&np->signal_handlers, &p->signal_handlers, sizeof(p->signal_handlers));
+  //memmove(&np->signal_handlers, &p->signal_handlers, sizeof(p->signal_handlers));
+  for (int i = 0; i < 32; i++) {
+    np->signal_handlers[i] = p->signal_handlers[i];
+  }
 
   np->signals_mask = p->signals_mask;
+  np->pending_signals = 0;
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
@@ -592,19 +596,28 @@ int
 kill(int pid, int signum)
 {
   struct proc *p;
+  uint op = 1 << signum;
+  //int pending_sigs;
 
   if(signum < 0 || signum > 31)
     return -1;
 
   for(p = proc; p < &proc[NPROC]; p++){
     acquire(&p->lock);
-    if(p->pid == pid)
-    {
-      p->pending_signals = p->pending_signals | (1 << signum);
-      release(&p->lock);
+    if(p->pid == pid){
+      if(p->killed || p->state==ZOMBIE || p->state==UNUSED){
+        return -1;
+      }
+      //TO ADD - after implemenation of CAS
+      /*
+      do{
+        pending_sigs = p->pending_signals;
+      }
+      while(!cas(&p->pending_signals, pending_sigs, pending_sigs|op));
+      */
+      p->pending_signals = p->pending_signals|op;
       return 0;
     }
-    release(&p->lock);
   }
   return -1;
 }
@@ -748,13 +761,6 @@ is_pending_and_not_masked(int signum) {
   
 }
 
-/////////////////////////////////
-void
-kernelsignalhandler(int signum) {
-  sigkill_func();               // Daniel added 25.4
-  return;
-}
-
 /*
 void
 usersignalhandler(struct proc *p, int signum) {
@@ -801,11 +807,51 @@ sigret();
 }
 
 void
+turnoff_sigbit(struct proc *p, int i) {
+  
+  //int op = 1 << i;   UNCOMMENT LATER
+  //uint pending_sigs = p->pending_signals;   UNCOMMENT LATER
+  p->pending_signals = p->pending_signals & ~(1 << i);
+
+  //TO ADD - after implemenation of CAS
+  /*
+  while(!cas(&p->pending_signals, pending_sigs, pending_sigs&op)){
+    pending_sigs = p->pending_signals;
+  }
+  */
+}
+    //p->pending_signals = p->pending_signals & ~(1 << i); 
+
+
+int
+search_cont_signals(void) {
+  struct proc *p = myproc();
+
+  if(is_pending_and_not_masked(SIGCONT)) {
+    sigcont_func();
+    turnoff_sigbit(p, SIGCONT);
+    return 1;
+  }
+
+  for(int i = 0; i < 32; i++) {
+    if(is_pending_and_not_masked(i)) {
+      if(p->signal_handlers[i] == (void*)SIGCONT){
+        sigcont_func();
+        turnoff_sigbit(p, i);
+        return 1;
+      }
+    }
+  }
+
+  return 0;
+}
+
+void
 signalhandler(void)
 {
   struct proc *p = myproc();
   
-  if(p == 0)
+  if(p == 0 || p->signal_handling)
     return;
 
   //make sure its not a kernel trap???????
@@ -817,7 +863,7 @@ signalhandler(void)
       return;
 
     while(p->stopped) {
-      if(is_pending_and_not_masked(SIGKILL) || is_pending_and_not_masked(SIGCONT))
+      if(search_cont_signals())
       {
         break;
       }
@@ -827,11 +873,14 @@ signalhandler(void)
 
     if(is_pending_and_not_masked(i))
     {
-      switch (i) {
-        case SIG_DFL:
-          kernelsignalhandler(i);
-          break;
 
+      if(p->signal_handlers[i] == (void*)SIG_IGN){
+        continue;
+      }
+
+      else if(p->signal_handlers[i] == (void*)SIG_DFL)
+      { //kernel space handler
+      switch (i){
         case SIGSTOP:
           sigstop_func();
           break;
@@ -843,20 +892,35 @@ signalhandler(void)
           sigkill_func();
           break;
         
-        case SIG_IGN:
-          break;        
-          
-        
-        //User signal handler
         default:
-          usersignalhandler(p, i);
+          sigkill_func();
+          break;       
+        }
       }
+
+      else if(p->signal_handlers[i] == (void*)SIGSTOP){
+        sigstop_func();
+      }
+
+      else if(p->signal_handlers[i] == (void*)SIGCONT){
+        sigcont_func();
+      }
+
+      else if(p->signal_handlers[i] == (void*)SIGKILL){
+        sigkill_func();
+      }
+
+      else{ //User signal handler
+        usersignalhandler(p, i);
+      }    
+       
+    turnoff_sigbit(p, i);
+
     }
-    //cas?
-    p->pending_signals = p->pending_signals & ~(1 << i); 
+    //p->pending_signals = p->pending_signals & ~(1 << i); 
   }
   
-  release(&p->lock);
+  //release(&p->lock);
 
 }
 
@@ -882,7 +946,7 @@ usersignalhandler(struct proc *p, int signum) {
  
   //4
   //reduce the process trapframe stack pointer by the size of trapframe
-  uint sp_n = p->trapframe->sp - sizeof(struct trapframe);
+  uint64 sp_n = p->trapframe->sp - sizeof(struct trapframe);
   p->user_tf_backup = (struct trapframe*)sp_n;
    
   //5 
@@ -892,7 +956,7 @@ usersignalhandler(struct proc *p, int signum) {
   
   //6    p->trapframe->X    X=?
   //update the current process trapframe to point to the signal handler func addr
-  p->trapframe = (uint)handler;
+  p->trapframe->epc = (uint64)handler;
   
   //7
   // call_sigret size
@@ -913,9 +977,4 @@ usersignalhandler(struct proc *p, int signum) {
   
   p->signal_handling = 1;
   return;
-
-
-
-
-
 }

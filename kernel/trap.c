@@ -94,6 +94,10 @@ usertrapret(void)
   // we're about to switch the destination of traps from
   // kerneltrap() to usertrap(), so turn off interrupts until
   // we're back in user space, where usertrap() is correct.
+  
+  //if (p->killed)
+  //  return -1;
+  signalhandler();
   intr_off();
 
   // send syscalls, interrupts, and exceptions to trampoline.S
