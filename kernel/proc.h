@@ -120,4 +120,5 @@ struct proc {
   uint signals_mask;
   void* signal_handlers[32];
   struct trapframe *user_tf_backup;
+  volatile int stopped;        
 };

@@ -126,6 +126,7 @@ found:
 
   p->signals_mask = 0;
   p->pending_signals = 0;
+  p->stopped = 0;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -588,18 +589,18 @@ wakeup(void *chan)
 // The victim won't exit until it tries to return
 // to user space (see usertrap() in trap.c).
 int
-kill(int pid)
+kill(int pid, int signum)
 {
   struct proc *p;
 
+  if(signum < 0 || signum > 31)
+    return -1;
+
   for(p = proc; p < &proc[NPROC]; p++){
     acquire(&p->lock);
-    if(p->pid == pid){
-      p->killed = 1;
-      if(p->state == SLEEPING){
-        // Wake process from sleep().
-        p->state = RUNNABLE;
-      }
+    if(p->pid == pid)
+    {
+      p->pending_signals = p->pending_signals | (1 << signum);
       release(&p->lock);
       return 0;
     }
@@ -707,3 +708,114 @@ procdump(void)
     printf("\n");
   }
 }
+
+void 
+sigcont_func(void)
+{
+  struct proc *p = myproc();
+  p->stopped = 0;
+}
+
+void
+sigstop_func(void)
+{
+  struct proc *p = myproc();
+  p->stopped = 1;
+}
+
+void
+sigkill_func(void)
+{
+  struct proc *p = myproc();
+  p->killed = 1;
+  if(p->state == SLEEPING)
+    p->state = RUNNABLE;
+}
+
+int
+is_pending_and_not_masked(int signum) {
+  struct proc *p = myproc();
+
+  uint64 non_maskable = ~(1 << SIGKILL) & ~(1 << SIGSTOP);
+  
+  if((p->pending_signals & (1 << signum)) && !((p->signals_mask & non_maskable) & (1 << signum)))
+    return 1;
+  
+  else
+    return 0;
+  
+}
+
+/////////////////////////////////
+void
+kernelsignalhandler(int signum) {
+  return;
+}
+
+/////////////////////////////////
+void
+usersignalhandler(int signum) {
+  return;
+}
+
+void
+signalhandler(void)
+{
+  struct proc *p = myproc();
+  
+  if(p == 0)
+    return;
+
+  //make sure its not a kernel trap???????
+  acquire(&p->lock);
+  for(int i = 0; i < 32; i++) {
+    //check p->killed????
+    while(p->stopped) {
+      if(is_pending_and_not_masked(SIGKILL) || is_pending_and_not_masked(SIGCONT))
+      {
+        break;
+      }
+      //yield CPU back to the scheduler
+      yield();
+    }
+
+    if(is_pending_and_not_masked(i))
+    {
+      struct sigaction *handler = p->signal_handlers[i];
+      switch ((uint64)(handler->sa_handler)) 
+      {
+        case SIG_DFL:
+          kernelsignalhandler(i);
+          break;
+
+        case SIGSTOP:
+          sigstop_func();
+          break;
+        
+        case SIGCONT:
+          sigcont_func();
+
+        case SIGKILL:
+          sigkill_func();
+        
+        case SIG_IGN:
+          break;
+        
+        //User signal handler
+        default:
+          usersignalhandler(i);
+      }
+    }
+    //cas?
+    p->pending_signals = p->pending_signals & ~(1 << i); 
+  }
+  
+  release(&p->lock);
+
+}
+
+
+
+
+
+

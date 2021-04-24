@@ -90,7 +90,7 @@ int             growproc(int);
 void            proc_mapstacks(pagetable_t);
 pagetable_t     proc_pagetable(struct proc *);
 void            proc_freepagetable(pagetable_t, uint64);
-int             kill(int);
+int             kill(int, int);
 struct cpu*     mycpu(void);
 struct cpu*     getmycpu(void);
 struct proc*    myproc();
@@ -109,6 +109,10 @@ void            procdump(void);
 uint            sigprocmask(uint);
 int             sigaction(int, const struct sigaction*, struct sigaction*);
 void            sigret(void);
+int             is_pending_and_not_masked(int);
+void            signalhandler(void);
+void            kernelsignalhandler(int);
+void            usersignalhandler(int);
 // swtch.S
 void            swtch(struct context*, struct context*);
 
