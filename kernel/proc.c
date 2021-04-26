@@ -6,6 +6,9 @@
 #include "proc.h"
 #include "defs.h"
 
+extern void* callsigret(void);
+extern void* endcallsigret(void);
+
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -122,11 +125,14 @@ found:
 
   // Initialize handlers to be default
   
-  memset(&p->signal_handlers, SIG_DFL, 32);
+  for (int i = 0; i < 32; i++) {
+    p->signal_handlers[i] = (void*)SIG_DFL;
+  }
 
   p->signals_mask = 0;
   p->pending_signals = 0;
   p->stopped = 0;
+  p->signal_handling = 0;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -299,8 +305,10 @@ fork(void)
 
   //copy signals_mask and signals_handlers to child proc
   //memmove(&np->signal_handlers, &p->signal_handlers, sizeof(p->signal_handlers));
-  for (int i = 0; i < 32; i++) {
-    np->signal_handlers[i] = p->signal_handlers[i];
+  for (int j = 0; j < 32; j++) {
+    np->signal_handlers[j] = p->signal_handlers[j];
+    //debug
+    //printf("j: %d, process pid: %d, signal_handler[i]: %d\n",j, np->pid, np->signal_handlers[j]);
   }
 
   np->signals_mask = p->signals_mask;
@@ -597,7 +605,6 @@ kill(int pid, int signum)
 {
   struct proc *p;
   uint op = 1 << signum;
-  //int pending_sigs;
 
   if(signum < 0 || signum > 31)
     return -1;
@@ -605,6 +612,10 @@ kill(int pid, int signum)
   for(p = proc; p < &proc[NPROC]; p++){
     acquire(&p->lock);
     if(p->pid == pid){
+      //debug
+      printf("%d: got %d\n",p->pid,signum);
+        //printf("inside kill ! i: %d, process pid: %d, signal_handler[i]: %d\n",i, p->pid, p->signal_handlers[i]);
+
       if(p->killed || p->state==ZOMBIE || p->state==UNUSED){
         return -1;
       }
@@ -616,8 +627,10 @@ kill(int pid, int signum)
       while(!cas(&p->pending_signals, pending_sigs, pending_sigs|op));
       */
       p->pending_signals = p->pending_signals|op;
+      release(&p->lock);
       return 0;
     }
+    release(&p->lock);
   }
   return -1;
 }
@@ -627,41 +640,72 @@ sigprocmask(uint mask)
 {
   struct proc *p = myproc();
   uint old_mask = p->signals_mask;
-  p->signals_mask = mask;
+  p->signals_mask = mask & ~(1 << SIGKILL | 1 << SIGSTOP);
   return old_mask;
 }
 
 int
 sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 {
+  //debug
+  printf("act: %d\n", act);
   struct proc *p = myproc();
 
   if(signum < 0 || signum > 31)
     return -1;
 
-  //attempting to modify SIGKILL or SIGSTOP will results in an error
   if(signum == SIGKILL || signum == SIGSTOP)
     return -1;
 
-  if(act == 0)
+  if(act == 0) 
     return -1;
 
-  if(oldact != 0) 
-    oldact = p->signal_handlers[signum];
+  //struct sigaction *var;
 
-  memmove(&p->signal_handlers[signum], &act, sizeof(struct sigaction)); 
-  
+  if(act == (void*)SIG_DFL) {
+    //debug
+    printf("inside SIG_DFL case\n");
+    if( oldact != 0)
+      memmove(&oldact, &p->signal_handlers[signum], sizeof(void*));
+      //copyout(p->pagetable, (uint64)&oldact, (char*)&p->signal_handlers[signum], sizeof(struct sigaction));
+    p->signal_handlers[signum] = &act;
+  }
+  else {
+    //debug
+    printf("user handler case\n");
+    if (oldact != 0) {
+      //debut
+      printf("memmove to oldact\n");
+      memmove(&oldact, &p->signal_handlers[signum], sizeof(void*));
+    }
+    //copyout(p->pagetable, (uint64)&oldact, (char*)&p->signal_handlers[signum], sizeof(struct sigaction));
+    //debug
+    //printf("after copyout\n");
+    memmove(&p->signal_handlers[signum], &act, sizeof(void*));
+    //copyin(p->pagetable, (char*)&p->signal_handlers[signum], (uint64)&act, sizeof(struct sigaction));
+    //debug
+    //printf("after copyin\n");
+  }
+  //debug
+  //printf("returning 0\n");
   return 0;
 }
 
 void
 sigret(void)
 {
+  //debug
+  printf("sigret!!!\n");
+  printf("inside sigret!!!!!!\n");
   struct proc *p = myproc();
-  copy_tf(p->trapframe, p->user_tf_backup);
+  //acquire(&p->lock);
+  copyin(p->pagetable, (char*)p->trapframe, (uint64)p->user_tf_backup, sizeof(struct trapframe));
   p->signals_mask = p->signals_mask_backup;
   p->user_tf_backup = 0;
   p->signal_handling = 0;
+  //release(&p->lock);
+  //debug
+  printf("end of sigret func\n");
   //return p->trapframe->eax; // ?????
 }
 
@@ -728,23 +772,29 @@ void
 sigcont_func(void)
 {
   struct proc *p = myproc();
+  //acquire(&p->lock);
   p->stopped = 0;
+  //release(&p->lock);
 }
 
 void
 sigstop_func(void)
 {
   struct proc *p = myproc();
+  //acquire(&p->lock);
   p->stopped = 1;
+  //release(&p->lock);
 }
 
 void
 sigkill_func(void)
 {
   struct proc *p = myproc();
+  acquire(&p->lock);
   p->killed = 1;
   if(p->state == SLEEPING)
     p->state = RUNNABLE;
+  release(&p->lock);
 }
 
 int
@@ -795,24 +845,22 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, sizeof(struct trapframe)
 
 */
 
-void
-copy_tf(struct trapframe* dst, struct trapframe* src){
-  memmove(dst, src, sizeof(struct trapframe));
-}
 
-void 
-call_sigret(void)
-{
-sigret();
-}
+// void 
+// call_sigret(void)
+// {
+// sigret();
+// }
+
 
 void
 turnoff_sigbit(struct proc *p, int i) {
   
   //int op = 1 << i;   UNCOMMENT LATER
   //uint pending_sigs = p->pending_signals;   UNCOMMENT LATER
+  acquire(&p->lock);
   p->pending_signals = p->pending_signals & ~(1 << i);
-
+  release(&p->lock);
   //TO ADD - after implemenation of CAS
   /*
   while(!cas(&p->pending_signals, pending_sigs, pending_sigs&op)){
@@ -830,6 +878,12 @@ search_cont_signals(void) {
   if(is_pending_and_not_masked(SIGCONT)) {
     sigcont_func();
     turnoff_sigbit(p, SIGCONT);
+    return 1;
+  }
+
+  if(is_pending_and_not_masked(SIGKILL)) {
+    sigkill_func();
+    turnoff_sigbit(p, SIGKILL);
     return 1;
   }
 
@@ -857,6 +911,8 @@ signalhandler(void)
   //make sure its not a kernel trap???????
 
   for(int i = 0; i < 32; i++) {
+    //printf("i: %d, process pid: %d, signal_handler[i]: %d\n",i, p->pid, p->signal_handlers[i]);
+
     //int signal_ptr= 1 << i;
     //check p->killed????
     if(p->killed)
@@ -871,15 +927,22 @@ signalhandler(void)
       yield();
     }
 
+    
     if(is_pending_and_not_masked(i))
     {
+      // printf("process pid: %d, signal_handler[i]: %d\n", p->pid, p->signal_handlers[i]);
+      printf("%d: handeling %d\n",p->pid,i);
+      //printf("handler: %d\n", p->signal_handlers[i]);
 
       if(p->signal_handlers[i] == (void*)SIG_IGN){
         continue;
       }
-
+      //kernel space handler
       else if(p->signal_handlers[i] == (void*)SIG_DFL)
-      { //kernel space handler
+      { 
+      //debug
+      // printf("inside kernel space handler\n");
+      
       switch (i){
         case SIGSTOP:
           sigstop_func();
@@ -887,6 +950,7 @@ signalhandler(void)
         
         case SIGCONT:
           sigcont_func();
+          break;
 
         case SIGKILL:
           sigkill_func();
@@ -910,7 +974,10 @@ signalhandler(void)
         sigkill_func();
       }
 
-      else{ //User signal handler
+      //User signal handler
+      else{ 
+        //debug
+        // printf("\ncalling to usersignalshandler!\n");
         usersignalhandler(p, i);
       }    
        
@@ -926,55 +993,70 @@ signalhandler(void)
 
 void
 usersignalhandler(struct proc *p, int signum) {
-  
+  printf("user handeling %d\n",signum);
   //1
-  char *dst=0; 
-  struct sigaction *handler = p->signal_handlers[signum];
-  uint64 address = (uint64)(handler->sa_handler);
-  //copy the sigaction signal handler from user to kernel
-  copyin(p->pagetable, dst, address, sizeof(uint64));
+    //debug
+  //printf("on stage 1\n");
+  uint64 dst; 
+  struct sigaction *handler = (struct sigaction*) p->signal_handlers[signum];
+  copyin(p->pagetable, (char*)&dst, (uint64)&handler->sa_handler, sizeof(void*));
   
   //2
+    //debug
+  //printf("on stage 2\n");
   //backup mask
-  p->signals_mask_backup = p->signals_mask;
-  //set the current process signal mask to be the signal handler mask
-  p->signals_mask= (uint)handler->sigmask;
+  uint sigmask;
+  copyin(p->pagetable, (char*)&sigmask, (uint64)&handler->sigmask, sizeof(uint));
+  uint backup_mask = sigprocmask(sigmask);
+  p->signals_mask_backup = backup_mask;
   
   //3
+    //debug
+  //printf("on stage 3\n");
   //turn on flag
   p->signal_handling = 1;
  
   //4
+    //debug
+  //printf("on stage 4\n");
   //reduce the process trapframe stack pointer by the size of trapframe
   uint64 sp_n = p->trapframe->sp - sizeof(struct trapframe);
   p->user_tf_backup = (struct trapframe*)sp_n;
    
   //5 
+    //debug
+  //printf("on stage 5\n");
   //backup the process trap frame 
-  //copyout?????????
-  copy_tf(p->user_tf_backup, p->trapframe);
+  copyout(p->pagetable, (uint64)p->user_tf_backup, (char*)p->trapframe, sizeof(struct trapframe));
   
-  //6    p->trapframe->X    X=?
-  //update the current process trapframe to point to the signal handler func addr
-  p->trapframe->epc = (uint64)handler;
+  //6    
+  //debug
+  //printf("on stage 6\n");
+  p->trapframe->epc = (uint64)dst;
   
   //7
-  // call_sigret size
-  uint func_size = (signalhandler - call_sigret);
+    //debug
+  //printf("on stage 7\n");
+  int func_size = (endcallsigret - callsigret);
+  sp_n -= func_size;
   //reduce the trapframe stack pointer by func size
-  p->trapframe->sp = p->trapframe->sp-func_size;
+  p->trapframe->sp = sp_n;
   
   //8
+    //debug
+  // printf("on stage 8\n");
   //copy call_sigret to the process trapframe stack pointer 
-  memmove((void*)(p->trapframe->sp), call_sigret, func_size); // second arg?????
+  copyout(p->pagetable, (uint64)(p->trapframe->sp), (char*)&callsigret, func_size); // second arg?????
   
   //9
-  void* sig_func = (void*)(p->trapframe->sp); //address to function on stack
-  //put at the process a0 register the signal number
-  memmove((void*)(p->trapframe->a0), &signum, 4);
+    //debug
+  // printf("on stage 9\n");
+  p->trapframe->a0 = signum;
   //put at the process return address register the new trapframe sp
-  memmove((void*)(p->trapframe->ra), &sig_func, 4);
-  
-  p->signal_handling = 1;
-  return;
+  //debug
+  p->trapframe->ra = sp_n;
+  //p->signals_mask = backup_mask;
+  //p->signal_handling = 1;
+  //debug
+  // printf("after last stage\n");
 }

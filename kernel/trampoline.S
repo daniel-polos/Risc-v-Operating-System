@@ -139,3 +139,10 @@ userret:
         # return to user mode and user pc.
         # usertrapret() set up sstatus and sepc.
         sret
+.globl callsigret
+.global endcallsigret
+callsigret:
+        li a7, 24
+        ecall
+        ret
+endcallsigret:
