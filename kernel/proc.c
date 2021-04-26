@@ -698,12 +698,12 @@ sigret(void)
   printf("sigret!!!\n");
   printf("inside sigret!!!!!!\n");
   struct proc *p = myproc();
-  //acquire(&p->lock);
+  acquire(&p->lock);
   copyin(p->pagetable, (char*)p->trapframe, (uint64)p->user_tf_backup, sizeof(struct trapframe));
   p->signals_mask = p->signals_mask_backup;
   p->user_tf_backup = 0;
   p->signal_handling = 0;
-  //release(&p->lock);
+  release(&p->lock);
   //debug
   printf("end of sigret func\n");
   //return p->trapframe->eax; // ?????
@@ -905,8 +905,12 @@ signalhandler(void)
 {
   struct proc *p = myproc();
   
-  if(p == 0 || p->signal_handling)
+  if(p == 0)
     return;
+  
+  if(p->signal_handling)
+    return;
+  
 
   //make sure its not a kernel trap???????
 
@@ -931,8 +935,14 @@ signalhandler(void)
     if(is_pending_and_not_masked(i))
     {
       // printf("process pid: %d, signal_handler[i]: %d\n", p->pid, p->signal_handlers[i]);
-      printf("%d: handeling %d\n",p->pid,i);
+      //printf("%d: handeling %d\n",p->pid,i);
+      //printf("signum: %d, in signalhandler, signal_handling is: %d\n", i, p->signal_handling);
+      //debug
+      if(p->signal_handling)
+        return;
       //printf("handler: %d\n", p->signal_handlers[i]);
+      //debug
+      printf("handle signal: %d\n", i);
 
       if(p->signal_handlers[i] == (void*)SIG_IGN){
         continue;
@@ -993,6 +1003,8 @@ signalhandler(void)
 
 void
 usersignalhandler(struct proc *p, int signum) {
+  acquire(&p->lock);
+  //debug
   printf("user handeling %d\n",signum);
   //1
     //debug
@@ -1002,7 +1014,7 @@ usersignalhandler(struct proc *p, int signum) {
   copyin(p->pagetable, (char*)&dst, (uint64)&handler->sa_handler, sizeof(void*));
   
   //2
-    //debug
+  //debug
   //printf("on stage 2\n");
   //backup mask
   uint sigmask;
@@ -1011,10 +1023,16 @@ usersignalhandler(struct proc *p, int signum) {
   p->signals_mask_backup = backup_mask;
   
   //3
-    //debug
+  //debug
   //printf("on stage 3\n");
   //turn on flag
+  //acquire(&p->lock);
+  //debug
+  //printf("signum: %d, in userhandler, signal_handling is: %d\n", signum, p->signal_handling);
   p->signal_handling = 1;
+  //printf("signum: %d, in userhandler, signal_handling is: %d\n", signum, p->signal_handling);
+
+  //release(&p->lock);
  
   //4
     //debug
@@ -1051,6 +1069,8 @@ usersignalhandler(struct proc *p, int signum) {
   //9
     //debug
   // printf("on stage 9\n");
+  //debug
+  printf("inside user handler, signum: %d\n", signum);
   p->trapframe->a0 = signum;
   //put at the process return address register the new trapframe sp
   //debug
@@ -1059,4 +1079,5 @@ usersignalhandler(struct proc *p, int signum) {
   //p->signal_handling = 1;
   //debug
   // printf("after last stage\n");
+  release(&p->lock);
 }

@@ -101,7 +101,7 @@ void test_stop_cont_2(void){
 // verifying blocking sigkill and sigcont is impossible +  ignore sigcont
 void test_stop_cont_3(void){
     int child_pid,cstatus;
-    // int mask = (1 << SIGCONT) | (1 << SIGKILL) | (1 << SIGSTOP);
+    //int mask = (1 << SIGCONT) | (1 << SIGKILL) | (1 << SIGSTOP);
 
     if((child_pid = fork())>0){
         sleep(30);
@@ -174,14 +174,14 @@ void test_sigaction_2(void){
     if((cpid = fork())>0){
         sleep(40);
         kill(cpid,SIG_2);
-        sleep(20);
+        sleep(5);
 
         kill(cpid,SIG_3);
-        sleep(20);
+        sleep(5);
         kill(cpid,SIG_2);
 
-        sleep(25);
-        kill(cpid,SIG_2);
+        sleep(10);
+        kill(cpid,SIG_4);
 
         wait(&cstatus);
         printf("cstat:%d\n",cstatus);
@@ -256,10 +256,9 @@ void test_child_inherit_mask(void){
         while(1){
             printf("inside child");
             sleep(10);
-            // kill(cpid,SIG_2);
+            kill(cpid,SIG_2);
             sleep(5);
-
-            // kill(cpid,SIGCONT);
+            kill(cpid,SIGCONT);
             sleep(5);
             printf("Child ");
         }
@@ -272,13 +271,13 @@ struct test {
     char *s;
   } tests[] = {
      //{test_kill, "test_kill"},
-     //{test_stop_cont, "test_stop_cont"},
+    // {test_stop_cont, "test_stop_cont"},
     //{test_stop_cont_2, "test_stop_cont_2"},
-    // {test_stop_cont_3, "test_stop_cont_3"},
-    // {test_sigaction, "test_sigaction"},
+     //{test_stop_cont_3, "test_stop_cont_3"},
+     //{test_sigaction, "test_sigaction"},
     //{test_restoring_previous_handler, "test_restoring_previous_handler"},
-     {test_sigaction_2, "test_sigaction_2"},
-    //  {test_child_inherit_mask, "test_child_inherit_mask"},
+     //{test_sigaction_2, "test_sigaction_2"},
+      {test_child_inherit_mask, "test_child_inherit_mask"},
     { 0, 0}, 
   };
 
