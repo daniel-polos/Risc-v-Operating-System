@@ -3,6 +3,7 @@
 #define SIGKILL 9
 #define SIGSTOP 17
 #define SIGCONT 19
+#define NTHREAD 8 //TRHEAD
 
 struct sigaction {
   void (*sa_handler)(int);
@@ -120,5 +121,6 @@ struct proc {
   uint signals_mask;
   void* signal_handlers[32];
   struct trapframe *user_tf_backup;
-  volatile int stopped;        
+  volatile int stopped;
+  int signal_handling;        //indicate if handling the signal. initialize to zero??   
 };

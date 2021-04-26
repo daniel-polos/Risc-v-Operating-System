@@ -112,7 +112,7 @@ void            sigret(void);
 int             is_pending_and_not_masked(int);
 void            signalhandler(void);
 void            kernelsignalhandler(int);
-void            usersignalhandler(int);
+void            usersignalhandler(struct proc*, int);
 // swtch.S
 void            swtch(struct context*, struct context*);
 

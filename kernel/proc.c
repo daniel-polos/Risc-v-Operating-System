@@ -749,13 +749,40 @@ is_pending_and_not_masked(int signum) {
 /////////////////////////////////
 void
 kernelsignalhandler(int signum) {
+  sigkill_func();               // Daniel added 25.4
   return;
 }
 
 /////////////////////////////////
 void
-usersignalhandler(int signum) {
-  return;
+usersignalhandler(struct proc *p, int signum) {
+  // 1. jesus WHAT
+  char *dst=0; // ????
+  //uint64 address= p->signal_handlers[signum].sa_handler;
+  struct sigaction *handler = p->signal_handlers[signum];
+  uint64 address = (uint64)(handler->sa_handler);
+  copyin(p->pagetable, dst, address, sizeof(uint64));
+  
+  //copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
+  //2.
+  uint64 bakcUpSignalMask = p->signals_mask;
+  p->signals_mask= (uint)handler->sigmask;
+  //3.
+  p->signal_handling = 1;
+  //4.
+  uint64 local;
+  local = p->trapframe->sp;
+  local -= sizeof(struct trapframe);
+  p->user_tf_backup = (struct trapframe *)local;
+  //5. Now you should use the "copyout" function (from kernel to user), to copy the current process trapframe,
+
+  //   to the trapframe backup stack pointer (to reduce its stack pointer at the user space).
+  copyout(p->pagetable, )
+  // Copy from kernel to user.
+  // Copy len bytes from src to virtual address dstva in a given page table.
+  // Return 0 on success, -1 on error.
+
+copyout(pagetable_t pagetable, uint64 dstva, char *src, sizeof(struct trapframe));
 }
 
 void
@@ -803,7 +830,7 @@ signalhandler(void)
         
         //User signal handler
         default:
-          usersignalhandler(i);
+          usersignalhandler(p, i);
       }
     }
     //cas?
@@ -813,9 +840,3 @@ signalhandler(void)
   release(&p->lock);
 
 }
-
-
-
-
-
-
