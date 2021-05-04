@@ -487,13 +487,12 @@ exit(int status)
   reparent(p);
 
   for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){
-    if(th != thisth){
       if( th->tstate!=TUNUSED){
           th->killed = 1;
       }
       if(th->tstate == TRUNNABLE || th->tstate == TSLEEPING)
           th->tstate = TZOMBIE;
-    }
+    
   }
   for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){
         if(th!=thisth && th->tstate != TZOMBIE && th->tstate != TUNUSED)
