@@ -25,7 +25,7 @@ exec(char *path, char **argv)
 
   for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){ 
     acquire(&th->t_lock);
-    if(thisth !=  th){
+    if(thisth != th){
       if(th->tstate == TSLEEPING){
         th->tstate = TRUNNABLE;
       }
