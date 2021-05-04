@@ -633,7 +633,7 @@ forkret(void)
 
   // Still holding p->lock from scheduler.
   release(&myproc()->lock);
-  release(&mythread()->t_lock);
+  //release(&mythread()->t_lock);
 
 
   if (first) {
@@ -652,7 +652,8 @@ forkret(void)
 void
 sleep(void *chan, struct spinlock *lk)
 {
-  struct proc *p = myproc();
+   //struct proc *p = myproc(); //THREAD
+  struct thread *th = mythread(); //THREAD
   
   // Must acquire p->lock in order to
   // change p->state and then call sched.
@@ -661,20 +662,21 @@ sleep(void *chan, struct spinlock *lk)
   // (wakeup locks p->lock),
   // so it's okay to release lk.
 
-  acquire(&p->lock);  //DOC: sleeplock1
+  //acquire(&p->lock);  //DOC: sleeplock1 //THREAD
+  acquire(&th->t_lock);  //DOC: sleeplock1
   release(lk);
 
   // Go to sleep.
-  p->chan = chan;
-  p->state = SLEEPING;
+  th->chan = chan;       //THREAD
+  th->state = TSLEEPING; //THREAD
 
   sched();
 
   // Tidy up.
-  p->chan = 0;
+  th->chan = 0; //THREAD
 
   // Reacquire original lock.
-  release(&p->lock);
+  release(&th->t_lock); //THREAD
   acquire(lk);
 }
 
@@ -684,12 +686,16 @@ void
 wakeup(void *chan)
 {
   struct proc *p;
-
+  struct thread *th;
   for(p = proc; p < &proc[NPROC]; p++) {
     if(p != myproc()){
       acquire(&p->lock);
-      if(p->state == SLEEPING && p->chan == chan) {
-        p->state = RUNNABLE;
+      for(th=p->threads_Table; t<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
+        acquire(&th->t_lock);
+        if(th->state == TSLEEPING && th->chan == chan) {
+          th->state = TRUNNABLE;
+        }
+        release(&th->t_lock);
       }
       release(&p->lock);
     }
@@ -797,11 +803,16 @@ sigret(void)
   printf("sigret!!!\n");
   printf("inside sigret!!!!!!\n");
   struct proc *p = myproc();
+  struct thread *th= mythread();
   acquire(&p->lock);
-  copyin(p->pagetable, (char*)p->trapframe, (uint64)p->user_tf_backup, sizeof(struct trapframe));
+  acquire(th->t_lock);
+  //copyin(p->pagetable, (char*)p->trapframe, (uint64)p->user_tf_backup, sizeof(struct trapframe));
+  copyin(p->pagetable, (char*)th->trapframe, (uint64)th->user_tf_backup, sizeof(struct trapframe));
+
   p->signals_mask = p->signals_mask_backup;
-  p->user_tf_backup = 0;
+  th->user_tf_backup = 0;
   p->signal_handling = 0;
+  release(&th->t_lock);
   release(&p->lock);
   //debug
   printf("end of sigret func\n");
@@ -846,9 +857,9 @@ procdump(void)
 {
   static char *states[] = {
   [UNUSED]    "unused",
-  [SLEEPING]  "sleep ",
-  [RUNNABLE]  "runble",
-  [RUNNING]   "run   ",
+  //[SLEEPING]  "sleep ",
+  //[RUNNABLE]  "runble",
+  //[RUNNING]   "run   ",
   [ZOMBIE]    "zombie"
   };
   struct proc *p;
@@ -891,8 +902,14 @@ sigkill_func(void)
   struct proc *p = myproc();
   acquire(&p->lock);
   p->killed = 1;
-  if(p->state == SLEEPING)
-    p->state = RUNNABLE;
+  for(th=p->threads_Table; t<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
+      acquire(&th->t_lock);
+      th->killed = 1;
+      if(th->state == TSLEEPING){
+        th->state = TRUNNABLE;
+      }
+      release(&th->t_lock);
+  }
   release(&p->lock);
 }
 
@@ -1003,6 +1020,7 @@ void
 signalhandler(void)
 {
   struct proc *p = myproc();
+  struct thread *th = mythread();
   
   if(p == 0)
     return;
@@ -1018,9 +1036,10 @@ signalhandler(void)
 
     //int signal_ptr= 1 << i;
     //check p->killed????
-    if(p->killed)
-      return;
-
+    //if(p->killed)
+    //  return;
+    if(th->killed)
+      return
     while(p->stopped) {
       if(search_cont_signals())
       {
@@ -1087,7 +1106,7 @@ signalhandler(void)
       else{ 
         //debug
         // printf("\ncalling to usersignalshandler!\n");
-        usersignalhandler(p, i);
+        usersignalhandler(p, th ,i);
       }    
        
     turnoff_sigbit(p, i);
@@ -1101,8 +1120,10 @@ signalhandler(void)
 }
 
 void
-usersignalhandler(struct proc *p, int signum) {
+usersignalhandler(struct proc *p,  struct thread *th, int signum) {
   acquire(&p->lock);
+  acquire(&th->t_lock);
+
   //debug
   printf("user handeling %d\n",signum);
   //1
@@ -1137,19 +1158,19 @@ usersignalhandler(struct proc *p, int signum) {
     //debug
   //printf("on stage 4\n");
   //reduce the process trapframe stack pointer by the size of trapframe
-  uint64 sp_n = p->trapframe->sp - sizeof(struct trapframe);
-  p->user_tf_backup = (struct trapframe*)sp_n;
+  uint64 sp_n = th->trapframe->sp - sizeof(struct trapframe);
+  th->user_tf_backup = (struct trapframe*)sp_n;
    
   //5 
     //debug
   //printf("on stage 5\n");
   //backup the process trap frame 
-  copyout(p->pagetable, (uint64)p->user_tf_backup, (char*)p->trapframe, sizeof(struct trapframe));
+  copyout(p->pagetable, (uint64)th->user_tf_backup, (char*)th->trapframe, sizeof(struct trapframe));
   
   //6    
   //debug
   //printf("on stage 6\n");
-  p->trapframe->epc = (uint64)dst;
+  th->trapframe->epc = (uint64)dst;
   
   //7
     //debug
@@ -1157,26 +1178,27 @@ usersignalhandler(struct proc *p, int signum) {
   int func_size = (endcallsigret - callsigret);
   sp_n -= func_size;
   //reduce the trapframe stack pointer by func size
-  p->trapframe->sp = sp_n;
+  th->trapframe->sp = sp_n;
   
   //8
     //debug
   // printf("on stage 8\n");
   //copy call_sigret to the process trapframe stack pointer 
-  copyout(p->pagetable, (uint64)(p->trapframe->sp), (char*)&callsigret, func_size); // second arg?????
+  copyout(p->pagetable, (uint64)(th->trapframe->sp), (char*)&callsigret, func_size); // second arg?????
   
   //9
     //debug
   // printf("on stage 9\n");
   //debug
   printf("inside user handler, signum: %d\n", signum);
-  p->trapframe->a0 = signum;
+  th->trapframe->a0 = signum;
   //put at the process return address register the new trapframe sp
   //debug
-  p->trapframe->ra = sp_n;
+  th->trapframe->ra = sp_n;
   //p->signals_mask = backup_mask;
   //p->signal_handling = 1;
   //debug
   // printf("after last stage\n");
+  release(&th->t_lock);
   release(&p->lock);
 }
