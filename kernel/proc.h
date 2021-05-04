@@ -36,6 +36,7 @@ struct cpu {
   struct context context;     // swtch() here to enter scheduler().
   int noff;                   // Depth of push_off() nesting.
   int intena;                 // Were interrupts enabled before push_off()?
+  struct thread *thread;
 };
 
 extern struct cpu cpus[NCPU];
@@ -92,7 +93,8 @@ struct trapframe {
   /* 280 */ uint64 t6;
 };
 
-enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+enum procstate   { UNUSED, USED, ZOMBIE };
+enum threadstate { TUNUSED, TUSED, TSLEEPING, TRUNNABLE, TRUNNING, TZOMBIE }; //THREAD
 
 // Per-process state
 struct proc {
@@ -124,6 +126,7 @@ struct proc {
   //struct trapframe *user_tf_backup;
   volatile int stopped;
   int signal_handling;        //indicate if handling the signal. initialize to zero??   
+  struct thread threads_Table[NTHREAD]; //THREADS
 };
 
 struct thread {
