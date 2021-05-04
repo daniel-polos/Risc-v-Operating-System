@@ -469,6 +469,8 @@ exit(int status)
   end_op();
   p->cwd = 0;
 
+
+
   acquire(&wait_lock);
 
   // Give any children to init.
@@ -1221,11 +1223,11 @@ kthread_join(int thread_id, int* status){
   acquire(&p->lock);
   acquire(&wait_lock);
   for(th=p->threads_Table; t<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
-    if(thread_id != thisth->tid || th == thisth){
+    if(thread_id != th->tid || th == thisth){
       continue;
     }
     acquire(th->t_lock);
-    if(th->tstate ==TZOMBIE){
+    if(th->tstate == TZOMBIE){
       if(status != 0 && copyout(p->pagetable, (uint64)status, (char *)&np->xstate,
                                   sizeof(np->xstate)) < 0){
           freethread(th);
