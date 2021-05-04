@@ -100,7 +100,7 @@ struct proc {
 
   // p->lock must be held when using these:
   enum procstate state;        // Process state
-  void *chan;                  // If non-zero, sleeping on chan
+  //void *chan;                  // If non-zero, sleeping on chan
   int killed;                  // If non-zero, have been killed
   int xstate;                  // Exit status to be returned to parent's wait
   int pid;                     // Process ID
@@ -109,11 +109,11 @@ struct proc {
   struct proc *parent;         // Parent process
 
   // these are private to the process, so p->lock need not be held.
-  uint64 kstack;               // Virtual address of kernel stack
+  //uint64 kstack;               // Virtual address of kernel stack
   uint64 sz;                   // Size of process memory (bytes)
   pagetable_t pagetable;       // User page table
-  struct trapframe *trapframe; // data page for trampoline.S
-  struct context context;      // swtch() here to run process
+  //struct trapframe *trapframe; // data page for trampoline.S
+  //struct context context;      // swtch() here to run process
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
@@ -121,7 +121,20 @@ struct proc {
   uint signals_mask;
   uint signals_mask_backup;
   void* signal_handlers[32];
-  struct trapframe *user_tf_backup;
+  //struct trapframe *user_tf_backup;
   volatile int stopped;
   int signal_handling;        //indicate if handling the signal. initialize to zero??   
 };
+
+struct thread {
+  enum threadstate tstate;     
+  int tid;                    //thread id
+  struct proc* parent_proc;        //process that the thread lives in
+  int killed;
+  uint kstack;
+  void *chan;                 //if non-zero, sleeping on chan
+  struct trapframe *trapframe;
+  struct trapframe *user_tf_backup;
+  struct context context;     
+  struct spinlock t_lock;
+}
