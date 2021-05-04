@@ -495,9 +495,9 @@ int
 wait(uint64 addr)
 {
   struct proc *np;
+  struct thread *nt;
   int havekids, pid;
   struct proc *p = myproc();
-
   acquire(&wait_lock);
 
   for(;;){
@@ -513,10 +513,17 @@ wait(uint64 addr)
           // Found one.
           pid = np->pid;
           if(addr != 0 && copyout(p->pagetable, addr, (char *)&np->xstate,
-                                  sizeof(np->xstate)) < 0) {
-            release(&np->lock);
-            release(&wait_lock);
-            return -1;
+                                  sizeof(np->xstate)) < 0){
+          release(&np->lock);
+          release(&wait_lock);
+          return -1;
+        }
+          for(th=proc->threads_Table; t<&proc->threads_Table[NTHREAD]; th++){
+            acquire(&th->t_lock);
+            if(th->tstate == TZOMBIE){
+              freethread(th);
+            }
+            release(&th->t_lock);
           }
           freeproc(np);
           release(&np->lock);
@@ -1201,4 +1208,106 @@ usersignalhandler(struct proc *p,  struct thread *th, int signum) {
   // printf("after last stage\n");
   release(&th->t_lock);
   release(&p->lock);
+}
+int
+kthread_join(int thread_id, int* status){
+  struct thread *thisth = mythread();
+  struct proc *p = myproc();
+  struct thread *th;
+  acquire(&wait_lock);
+  if(thisth->tid == thread_tid){
+    return -1;
+  }
+  acquire(&p->lock);
+  acquire(&wait_lock);
+  for(th=p->threads_Table; t<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
+    if(thread_id != thisth->tid || th == thisth){
+      continue;
+    }
+    acquire(th->t_lock);
+    if(th->tstate ==TZOMBIE){
+      if(status != 0 && copyout(p->pagetable, (uint64)status, (char *)&np->xstate,
+                                  sizeof(np->xstate)) < 0){
+          freethread(th);
+          release(&th->t_lock);
+          release(&wait_lock);
+          release(&p->lock);
+          return -1;
+      }
+      else {
+        freethread(th);
+        release(&th->t_lock);
+        release(&wait_lock);
+        release(&p->lock);
+        return 0;
+      }
+    }
+    if (th->tstate== TUNUSED){
+      release(&th->t_lock);
+      release(&wait_lock);
+      release(&p->lock);
+      return 0; 
+    }
+    else{
+      sleep(th, &wait_lock);
+       if(status != 0 && copyout(p->pagetable, (uint64)status, (char *)&np->xstate,
+                                  sizeof(np->xstate)) < 0){
+        freethread(th);
+        release(&th->t_lock);
+        release(&wait_lock);
+        release(&p->lock);
+        return -1;
+      }
+      else{
+        freethread(th);
+        release(&th->t_lock);
+        release(&wait_lock);
+        release(&p->lock);
+        return 0;
+      }
+    }
+  }
+  release (&thisth->t_lock);
+  release(&wait_lock);
+  release(&p->lock);
+  return -1;
+}
+void
+wakethreads(void *chan){
+  struct thread *thisth = mythread();
+  struct proc *p = myproc();
+  struct thread *th;
+  acquire(&p->lock);
+  for(th = p->pthreads; th < &p->pthreads[NTHREAD]; t++){
+    acquire(&th->t_lock);
+    if(th->state == TSLEEPING && th->chan == chan){
+      t->state = RUNNABLE;
+    }
+    release(th->t_lock);
+  }
+  release(p->lock);
+}
+void kthread_exit(int status){
+  struct thread *th;
+  struct thread *thisth= mythread();
+  struct proc *p = myproc();
+  acquire(thisth->t_lock);
+  thisth->tstate = TZOMBIE;
+  //release(thisth->t_lock);
+  int haschildren = 0;
+  acquire(&p->lock);
+  for(th=p->threads_Table; t<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
+    acquire(&th->t_lock);
+    if(th->tstate != TUNUSED t->state != TZOMBIE){
+      haschildren=1;
+    }
+    release(&th->t_lock);
+  }
+  release(&p->lock);
+  wakethreads(thisth);
+  if(haschildren == 0){
+    release(&thisth->t_lock);
+    exit();
+  }
+  sched();
 }

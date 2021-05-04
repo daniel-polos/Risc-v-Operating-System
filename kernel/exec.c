@@ -20,6 +20,21 @@ exec(char *path, char **argv)
   struct proghdr ph;
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
+  struct thread *thisth = mythread();
+  struct thread *th
+
+  for(th=p->threads_Table; t<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
+    acquire(&th->t_lock);
+    if(thisth !=  th){
+      if(th->tstate == TSLEEPING){
+        th->tstate = TRUNNABLE;
+      }
+      th->killed = 1;
+      int* status;
+      kthread_join(th->tid, status); // TODO handle join failed ????
+    }
+  }
+
 
   begin_op();
 
