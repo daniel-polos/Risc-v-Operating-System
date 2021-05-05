@@ -34,6 +34,10 @@ int uptime(void);
 uint sigprocmask(uint);
 int sigaction(int, const struct sigaction*, struct sigaction*);
 void sigret(void);
+int kthread_join(int thread_id, int* status);
+int kthread_create(void (*start_func)(),void *stack);
+void kthread_exit(int status);
+int kthread_id(void);
 
 // ulib.c
 int stat(const char*, struct stat*);

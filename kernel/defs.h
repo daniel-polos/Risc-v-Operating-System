@@ -116,6 +116,10 @@ void            signalhandler(void);
 void            kernelsignalhandler(int);
 void            usersignalhandler(struct proc*, struct thread* , int);
 void            copy_tf(struct trapframe*, struct trapframe*);
+int             kthread_join(int, int*);
+int             kthread_create(void (*start_func)(),void *stack);
+void            kthread_exit(int);
+int             kthread_id(void);
 // swtch.S
 void            swtch(struct context*, struct context*);
 

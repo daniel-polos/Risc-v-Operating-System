@@ -36,7 +36,7 @@ trapinithart(void)
 void
 usertrap(void)
 {
-  //printf("inside usertrap\n");
+  printf("inside usertrap\n");
   int which_dev = 0;
 
   if((r_sstatus() & SSTATUS_SPP) != 0)
@@ -94,6 +94,7 @@ usertrapret(void)
   //printf("inside usertrapret\n");
   struct proc *p = myproc();
   struct thread *th = mythread();
+  //debug
   //struct thread *tt;
   // we're about to switch the destination of traps from
   // kerneltrap() to usertrap(), so turn off interrupts until
@@ -136,6 +137,10 @@ usertrapret(void)
   //debug
    
   // printf("trapframe field inside proc %d is at address %p\n",p->pid, p->trapframe);
+  //debug
+  printf("inside usertrapret, the tid is: %d\n", th->tid);
+
+  printf("inside usertrapret, the epc is: %p\n", th->trapframe->epc);
   uint64 fn = TRAMPOLINE + (userret - trampoline);
  ((void (*)(uint64,uint64))fn)(TRAPFRAME + (sizeof(struct trapframe)*th->ind) , satp);
  
@@ -147,7 +152,7 @@ usertrapret(void)
 void 
 kerneltrap()
 {
-  // printf("inside kernektrap\n");
+  //printf("inside kernektrap\n");
   int which_dev = 0;
   uint64 sepc = r_sepc();
   uint64 sstatus = r_sstatus();

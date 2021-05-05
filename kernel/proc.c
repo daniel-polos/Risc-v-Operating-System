@@ -88,6 +88,8 @@ mycpu(void) {
   return c;
 }
 
+
+
 // Return the current struct proc *, or zero if none.
 struct proc*
 myproc(void) {
@@ -109,7 +111,7 @@ mythread(void) {
 
 int
 allocpid() {
-  //printf("inside allocpid\n");
+  printf("inside allocpid\n");
   int pid;
   
   acquire(&pid_lock);
@@ -135,8 +137,8 @@ static void
 freethread (struct thread *th)
 {
   //printf("inside freethread\n");
-  if(th->trapframe)
-    kfree((void*)th->trapframe);
+  //if(th->trapframe)
+  //  kfree((void*)th->trapframe);
   th->trapframe = 0;
   th->tid= 0;
   th->tstate = TUNUSED;
@@ -147,7 +149,7 @@ freethread (struct thread *th)
 static struct thread*
 allocthread (struct proc *p){ 
                        
-  //printf("inside allocthread\n");
+  printf("inside allocthread\n");
   struct thread *th;
   int ind = 0;
   for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
@@ -196,7 +198,7 @@ allocthread (struct proc *p){
 static struct thread*
 allocproc(void)
 {
-  //printf("inside allocproc\n");
+  printf("inside allocproc\n");
   struct proc *p;
   //struct thread *th;
   for(p = proc; p < &proc[NPROC]; p++) {
@@ -286,7 +288,9 @@ freeproc(struct proc *p)
   for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
     freethread(th);
   }
-
+  if(p->trapframe)
+    kfree((void*)p->trapframe);
+  p->trapframe = 0;
 }
 
 
@@ -491,7 +495,7 @@ reparent(struct proc *p)
 void
 exit(int status)
 {
-  //printf("inside exit\n");
+  printf("inside exit\n");
   struct proc *p = myproc();
   struct thread *th;
   struct thread *thisth = mythread();
@@ -679,6 +683,8 @@ scheduler(void)
 void
 sched(void)
 {
+  //debug
+  //printf("inside sched, nnof: %d\n", mycpu()->noff);
   //printf("inside sched\n");
   int intena;
   struct thread *th = mythread();
@@ -799,7 +805,7 @@ wakeup(void *chan)
 int
 kill(int pid, int signum)
 {
-  //printf("inside kill\n");
+  printf("inside kill\n");
   struct proc *p;
   uint op = 1 << signum;
 
@@ -814,16 +820,10 @@ kill(int pid, int signum)
       //printf("inside kill ! i: %d, process pid: %d, signal_handler[i]: %d\n",i, p->pid, p->signal_handlers[i]);
 
       if(p->killed || p->state==ZOMBIE || p->state==UNUSED){
-        //release(&p->lock) //TODO ??
+        release(&p->lock); //TODO ??
         return -1;
       }
-      //TO ADD - after implemenation of CAS
-      /*
-      do{
-        pending_sigs = p->pending_signals;
-      }
-      while(!cas(&p->pending_signals, pending_sigs, pending_sigs|op));
-      */
+
       p->pending_signals = p->pending_signals|op;
       release(&p->lock);
       return 0;
@@ -1176,8 +1176,8 @@ signalhandler(void)
 
 void
 usersignalhandler(struct proc *p,  struct thread *th, int signum) {
-  //printf("inside signaluserhandler\n");
-  acquire(&p->lock);
+  printf("inside signaluserhandler\n");
+  //acquire(&p->lock);
   acquire(&th->t_lock);
 
   //debug
@@ -1246,7 +1246,7 @@ usersignalhandler(struct proc *p,  struct thread *th, int signum) {
     //debug
   // printf("on stage 9\n");
   //debug
-  printf("inside user handler, signum: %d\n", signum);
+  //printf("inside user handler, signum: %d\n", signum);
   th->trapframe->a0 = signum;
   //put at the process return address register the new trapframe sp
   //debug
@@ -1256,11 +1256,11 @@ usersignalhandler(struct proc *p,  struct thread *th, int signum) {
   //debug
   // printf("after last stage\n");
   release(&th->t_lock);
-  release(&p->lock);
+  //release(&p->lock);
 }
 int
 kthread_join(int thread_id, int* status){
-  //printf("inside kthread_join\n");
+  printf("inside kthread_join\n");
   struct thread *thisth = mythread();
   struct proc *p = myproc();
   struct thread *th;
@@ -1323,7 +1323,7 @@ kthread_join(int thread_id, int* status){
 }
 void
 wakethreads(void *chan){
-  //printf("inside wakethreads\n");
+  printf("inside wakethreads\n");
   //struct thread *thisth = mythread();
   struct proc *p = myproc();
   struct thread *th;
@@ -1337,12 +1337,13 @@ wakethreads(void *chan){
   }
   release(&p->lock);
 }
+
 void kthread_exit(int status){
-  //printf("inside kthread_exit\n");
+  printf("inside kthread_exit\n");
   struct thread *th;
   struct thread *thisth= mythread();
   struct proc *p = myproc();
-  acquire(&thisth->t_lock);
+  //acquire(&thisth->t_lock);
   thisth->tstate = TZOMBIE;
   //release(thisth->t_lock);
   int hasThreadsInside = 0;
@@ -1357,8 +1358,44 @@ void kthread_exit(int status){
   release(&p->lock);
   wakethreads(thisth);
   if(hasThreadsInside == 0){
-    release(&thisth->t_lock);
+    //release(&thisth->t_lock);
+    //debug
+    printf("calling exit");
     exit(status); //status?
   }
   sched();
+}
+
+int
+kthread_create(void (*start_func)(),void *stack) {
+  printf("inside kthread_create\n");
+  struct thread *th;
+  struct thread *thisth = mythread();
+  struct proc *p = myproc();
+  //debug
+  printf("create1\n");
+  acquire(&p->lock);
+  if((th = allocthread(p)) == 0) {
+    release(&p->lock);
+    return -1;
+  }
+  //debug
+  printf("create2\n");
+  memmove(th->trapframe, thisth->trapframe, sizeof(struct trapframe));
+  th->tstate = TRUNNABLE;
+  th->trapframe->sp = (uint64)(stack + MAX_STACK_SIZE -16);
+  th->trapframe->epc = (uint64) start_func;
+  //debug
+  printf("start_func adder: %p\n", start_func);
+  release(&p->lock);
+
+  //debug
+  printf("inside kthread_create, tid: %d\n", th->tid);
+  return th->tid; 
+}
+
+int
+kthread_id() {
+  struct thread *t = mythread();
+  return t->tid;
 }

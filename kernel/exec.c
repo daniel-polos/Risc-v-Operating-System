@@ -12,7 +12,7 @@ static int loadseg(pde_t *pgdir, uint64 addr, struct inode *ip, uint offset, uin
 int
 exec(char *path, char **argv)
 {
-  printf("inside exec\n");
+  //printf("inside exec\n");
   char *s, *last;
   int i, off;
   uint64 argc, sz = 0, sp, ustack[MAXARG+1], stackbase;
@@ -31,9 +31,10 @@ exec(char *path, char **argv)
         th->tstate = TRUNNABLE;
       }
       th->killed = 1;
+      release(&th->t_lock);
       int* status= 0; //definitely not right!
       kthread_join(th->tid, status); // TODO handle join failed ????
-      release(&th->t_lock);
+      //release(&th->t_lock);
     }
   }
 
