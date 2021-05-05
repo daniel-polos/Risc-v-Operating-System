@@ -37,16 +37,14 @@ struct spinlock wait_lock;
 void
 proc_mapstacks(pagetable_t kpgtbl) {
   struct proc *p;
-  struct thread *th;
   for(p = proc; p < &proc[NPROC]; p++) {
     char *pa = kalloc();
     if(pa == 0)
       panic("kalloc");
-    for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){
     //uint64 va = KSTACK((int) (p - proc), );
-    uint64 va = KSTACK((int) (p - proc), (int) (th - p->threads_Table)); // TODO ????
-    kvmmap(kpgtbl, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
-    }
+    //uint64 va = KSTACK((int) (p - proc), (int) (th - p->threads_Table)); // TODO ????
+      uint64 va = KSTACK((int) (p - proc));
+      kvmmap(kpgtbl, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
   }
 }
 
@@ -54,6 +52,7 @@ proc_mapstacks(pagetable_t kpgtbl) {
 void
 procinit(void)
 {
+  //printf("inside procinit\n");
   struct proc *p;
   struct thread *th;
   initlock(&pid_lock, "nextpid");
@@ -63,8 +62,9 @@ procinit(void)
       initlock(&p->lock, "proc");
       //p->kstack = KSTACK((int) (p - proc));
       for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
-        initlock(&th->t_lock, "thread"); //TODO ????
-        th->kstack = KSTACK((int) (th - p->threads_Table), (int) (th - p->threads_Table)); //TODO ????
+        initlock(&th->t_lock, "thread");
+           
+        //th->kstack = KSTACK((int) (th - p->threads_Table), (int) (th - p->threads_Table)); //TODO ????
      }
   }
 }
@@ -109,6 +109,7 @@ mythread(void) {
 
 int
 allocpid() {
+  //printf("inside allocpid\n");
   int pid;
   
   acquire(&pid_lock);
@@ -133,25 +134,29 @@ alloc_t_id() { //THREAD
 static void
 freethread (struct thread *th)
 {
+  //printf("inside freethread\n");
   if(th->trapframe)
     kfree((void*)th->trapframe);
   th->trapframe = 0;
   th->tid= 0;
-  th->killed = 0;
   th->tstate = TUNUSED;
   th->chan = 0;
 }
 
 
 static struct thread*
-allocthread (struct proc *p){                      //THREAD
+allocthread (struct proc *p){ 
+                       
+  //printf("inside allocthread\n");
   struct thread *th;
+  int ind = 0;
   for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
     acquire(&th->t_lock);
     if(th->tstate == TUNUSED){
       goto found;
     }
     else{
+      ind++;
       release(&th->t_lock);
     }
   }
@@ -160,8 +165,17 @@ allocthread (struct proc *p){                      //THREAD
   found:
   th->tid = alloc_t_id();
   th->tstate = TUSED;
+  th->ind = ind;
+  th->trapframe = (struct trapframe*)((uint64)(p->trapframe) + (uint64)(th->ind*sizeof(struct trapframe)));
   th->parent_proc = p;
   th->killed=0;
+  memset(&th->context, 0, sizeof(th->context)); //THREAD
+  if((th->kstack = (uint64)kalloc()) == 0){
+    freethread(th);
+    release(&th->t_lock);
+    return 0;
+
+  } //TEST!!!!
   /*if((th->trapframe = (struct trapframe *)kalloc()) == 0){ 
     freethread(th);
     release(&th->t_lock);
@@ -170,7 +184,6 @@ allocthread (struct proc *p){                      //THREAD
   
   // Set up new context to start executing at forkret,
   // which returns to user space.
-  memset(&th->context, 0, sizeof(th->context)); //THREAD
   th->context.ra = (uint64)forkret;
   th->context.sp = th->kstack + PGSIZE;
   return th;
@@ -183,8 +196,9 @@ allocthread (struct proc *p){                      //THREAD
 static struct thread*
 allocproc(void)
 {
+  //printf("inside allocproc\n");
   struct proc *p;
-  struct thread *th;
+  //struct thread *th;
   for(p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
     if(p->state == UNUSED) {
@@ -209,19 +223,25 @@ found:
   p->pending_signals = 0;
   p->stopped = 0;
   p->signal_handling = 0;
-  struct trapframe *trapf;
+  //struct trapframe *trapf;
   // Allocate a trapframe page.
   //if((p->trapframe = (struct trapframe *)kalloc()) == 0){
-  if((trapf = (struct trapframe *)kalloc()) == 0){ 
+  if((p->trapframe = (struct trapframe *)kalloc()) == 0){
     freeproc(p);
     release(&p->lock);
     return 0;
   }
-  p->trapframe = trapf;
-  for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++, trapf++){ //thats how to write the for?
-    th->trapframe = trapf;
+
+//are we sure th was alredy allocated?
+  //p->trapframe = trapf;   //move inside for with dynamic i addition
+  //for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++, trapf++){ //thats how to write the for?
+  //  th->trapframe = trapf;
+    //debug
+  //  printf("trapframe: %p\n",trapf);
     //th->trapframe = p->trapframe +(sizeof (struct trapframe))* (th - p->threads_Table);
-  }
+ // }
+  //printf("p->trapframe points to: %p\n",p->trapframe);
+  
 
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
@@ -247,6 +267,7 @@ found:
 static void
 freeproc(struct proc *p)
 {
+  //printf("inside freeproc\n");
   struct thread *th;
   /*if(p->trapframe)
     kfree((void*)p->trapframe);*/ //thread
@@ -267,9 +288,6 @@ freeproc(struct proc *p)
   }
 
 }
-
-
-
 
 
 // Create a user page table for a given process,
@@ -296,7 +314,7 @@ proc_pagetable(struct proc *p)
 
   // map the trapframe just below TRAMPOLINE, for trampoline.S.
   if(mappages(pagetable, TRAPFRAME, PGSIZE,
-              (uint64)(p->threads_Table[0].trapframe), PTE_R | PTE_W) < 0){  //TODO ???
+              (uint64)(p->trapframe), PTE_R | PTE_W) < 0){  //TODO ???
     uvmunmap(pagetable, TRAMPOLINE, 1, 0);
     uvmfree(pagetable, 0);
     return 0;
@@ -331,7 +349,8 @@ uchar initcode[] = {
 void
 userinit(void)
 {
- struct thread *th; //THREAD
+  //printf("inside userinit#########\n");
+  struct thread *th; //THREAD
   struct proc *p;
 
   th = allocproc();         //THREAD
@@ -363,6 +382,7 @@ userinit(void)
 int
 growproc(int n)
 {
+  //printf("inside growproc\n");
   uint sz;
   struct proc *p = myproc();
 
@@ -387,6 +407,7 @@ growproc(int n)
 int
 fork(void)
 {
+  //printf("inside fork\n");
   int i, pid;
   struct proc *np;
   struct proc *p = myproc();
@@ -453,6 +474,7 @@ fork(void)
 void
 reparent(struct proc *p)
 {
+  //printf("inside reparent\n");
   struct proc *pp;
 
   for(pp = proc; pp < &proc[NPROC]; pp++){
@@ -469,11 +491,36 @@ reparent(struct proc *p)
 void
 exit(int status)
 {
+  //printf("inside exit\n");
   struct proc *p = myproc();
   struct thread *th;
-  struct thread *thisth =mythread();
+  struct thread *thisth = mythread();
   if(p == initproc)
     panic("init exiting");
+
+  //kill all threads
+  for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){
+    if(th!=thisth){
+          acquire(&th->t_lock);
+          th->killed = 1;
+          if (th->tstate == TSLEEPING) {
+            th->tstate = TRUNNABLE;
+          }
+          release(&th->t_lock);
+
+      }
+  }
+
+  for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){
+        if(th!=thisth) {
+          acquire(&th->t_lock);
+          kthread_join(th->tid, 0);
+          release(&th->t_lock);
+        }       
+  }
+
+  //kthread_exit(thisth->pid, 0);
+  
 
   // Close all open files.
   for(int fd = 0; fd < NOFILE; fd++){
@@ -496,27 +543,16 @@ exit(int status)
   // Give any children to init.
   reparent(p);
 
-  for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){
-      if( th->tstate!=TUNUSED){
-          th->killed = 1;
-      }
-      if(th->tstate == TRUNNABLE || th->tstate == TSLEEPING)
-          th->tstate = TZOMBIE;
-    
-  }
-  for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){
-        if(th!=thisth && th->tstate != TZOMBIE && th->tstate != TUNUSED)
-            sleep(th, &wait_lock);
-    }
-  
 
   // Parent might be sleeping in wait().
   wakeup(p->parent);
-  
+  acquire(&thisth->t_lock);
+
   acquire(&p->lock);
 
   p->xstate = status;
   p->state = ZOMBIE;
+  release(&p->lock);
   thisth->tstate = TZOMBIE;
 
   release(&wait_lock);
@@ -531,8 +567,8 @@ exit(int status)
 int
 wait(uint64 addr)
 {
+  //printf("inside wait\n");
   struct proc *np;
-  struct thread *th;
   int havekids, pid;
   struct proc *p = myproc();
 
@@ -557,13 +593,6 @@ wait(uint64 addr)
           release(&np->lock);
           release(&wait_lock);
           return -1;
-        }
-          for(th=np->threads_Table; th<&np->threads_Table[NTHREAD]; th++){
-            acquire(&th->t_lock);
-            if(th->tstate == TZOMBIE){ //TODO???? we calling to freeproc, so what's the point????
-              freethread(th);
-            }
-            release(&th->t_lock);
           }
           freeproc(np);
           release(&np->lock);
@@ -595,6 +624,7 @@ wait(uint64 addr)
 void
 scheduler(void)
 {
+  //printf("inside scheduler\n");
   struct proc *p;
   struct thread *th;
   struct cpu *c = mycpu(); //sjo==hould
@@ -608,7 +638,7 @@ scheduler(void)
     for(p = proc; p < &proc[NPROC]; p++) {
       //printf("in for 1\n");
 
-      acquire(&p->lock);
+      //acquire(&p->lock);
       //printf("in for 2\n");
       if(p->state == USED) { //THREAD USED instead od RUNNABLE
         // Switch to chosen process.  It is the process's job
@@ -622,9 +652,10 @@ scheduler(void)
             th->tstate = TRUNNING;
             c->proc = p;
             c->thread= th;
-            printf("trapframe: %d", th->trapframe);
+            //printf("trapframe: %d\n", (uint64)th->trapframe);
+            //printf("calling to swtch\n");
             swtch(&c->context, &th->context);
-            printf("right after swtch\n");
+            //printf("right after swtch\n");
             // Process is done running for now.
             // It should have changed its p->state before coming back.
             c->proc = 0;
@@ -633,7 +664,7 @@ scheduler(void)
           release(&th->t_lock);
         }
       }
-      release(&p->lock);
+      //release(&p->lock);
    }
   }
 }
@@ -648,11 +679,11 @@ scheduler(void)
 void
 sched(void)
 {
+  //printf("inside sched\n");
   int intena;
-  struct proc *p = myproc();  //THREAD
   struct thread *th = mythread();
-  if(!holding(&p->lock))
-    panic("sched p->lock");
+  if(!holding(&th->t_lock))
+    panic("sched th->t_lock");
   if(mycpu()->noff != 1)
     panic("sched locks");
   if(th->tstate == TRUNNING)
@@ -670,6 +701,7 @@ sched(void)
 void
 yield(void)
 {
+  //printf("inside yield\n");
   //struct proc *p = myproc();
   struct thread *th = mythread();
   acquire(&th->t_lock);
@@ -683,10 +715,11 @@ yield(void)
 void
 forkret(void)
 {
+  //printf("inside forkret\n");
   static int first = 1;
 
   // Still holding p->lock from scheduler.
-  release(&myproc()->lock);
+  release(&mythread()->t_lock);
   //release(&mythread()->t_lock);
 
 
@@ -706,6 +739,7 @@ forkret(void)
 void
 sleep(void *chan, struct spinlock *lk)
 {
+  //printf("inside sleep\n");
    //struct proc *p = myproc(); //THREAD
   struct thread *th = mythread(); //THREAD
   
@@ -739,21 +773,24 @@ sleep(void *chan, struct spinlock *lk)
 void
 wakeup(void *chan)
 {
+  //printf("inside wakeup\n");
   struct proc *p;
   struct thread *th;
+  
   for(p = proc; p < &proc[NPROC]; p++) {
     if(p != myproc()){
-      acquire(&p->lock);
+      //acquire(&p->lock);
       for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
-        acquire(&th->t_lock);
+        //acquire(&th->t_lock);
         if(th->tstate == TSLEEPING && th->chan == chan) {
           th->tstate = TRUNNABLE;
         }
-        release(&th->t_lock);
+        //release(&th->t_lock);
       }
-      release(&p->lock);
+      //release(&p->lock);
     }
   }
+  //printf("finished wakeup\n");
 }
 
 // Kill the process with the given pid.
@@ -762,6 +799,7 @@ wakeup(void *chan)
 int
 kill(int pid, int signum)
 {
+  //printf("inside kill\n");
   struct proc *p;
   uint op = 1 << signum;
 
@@ -855,8 +893,8 @@ void
 sigret(void)
 {
   //debug
-  printf("sigret!!!\n");
-  printf("inside sigret!!!!!!\n");
+  //printf("sigret!!!\n");
+  //printf("inside sigret!!!!!!\n");
   struct proc *p = myproc();
   struct thread *th= mythread();
   acquire(&p->lock);
@@ -910,6 +948,7 @@ either_copyin(void *dst, int user_src, uint64 src, uint64 len)
 void
 procdump(void)
 {
+  //printf("inside procdump\n");
   static char *states[] = {
   [UNUSED]    "unused",
   //[SLEEPING]  "sleep ",
@@ -1137,6 +1176,7 @@ signalhandler(void)
 
 void
 usersignalhandler(struct proc *p,  struct thread *th, int signum) {
+  //printf("inside signaluserhandler\n");
   acquire(&p->lock);
   acquire(&th->t_lock);
 
@@ -1220,6 +1260,7 @@ usersignalhandler(struct proc *p,  struct thread *th, int signum) {
 }
 int
 kthread_join(int thread_id, int* status){
+  //printf("inside kthread_join\n");
   struct thread *thisth = mythread();
   struct proc *p = myproc();
   struct thread *th;
@@ -1227,62 +1268,62 @@ kthread_join(int thread_id, int* status){
   if(thisth->tid == thread_id){
     return -1;
   }
-  acquire(&p->lock);
-  acquire(&wait_lock);
+  //acquire(&p->lock);
   for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
-    if(thread_id != th->tid || th == thisth){
+    if(th == thisth || thread_id != th->tid) {
       continue;
     }
-    acquire(&th->t_lock);
+    //acquire(&th->t_lock);
     if(th->tstate == TZOMBIE){
       if(status != 0 && copyout(p->pagetable, (uint64)status, (char *)&p->xstate,
                                   sizeof(p->xstate)) < 0){
           freethread(th);
-          release(&th->t_lock);
+          //release(&th->t_lock);
           release(&wait_lock);
-          release(&p->lock);
+          //release(&p->lock);
           return -1;
       }
       else {
         freethread(th);
-        release(&th->t_lock);
+        //release(&th->t_lock);
         release(&wait_lock);
-        release(&p->lock);
+        //release(&p->lock);
         return 0;
       }
     }
-    if (th->tstate== TUNUSED){
-      release(&th->t_lock);
+    if (th->tstate == TUNUSED){
+      //release(&th->t_lock);
       release(&wait_lock);
-      release(&p->lock);
+      //release(&p->lock);
       return 0; 
     }
     else{
-      sleep(th, &wait_lock);
+      sleep(th,&wait_lock);
        if(status != 0 && copyout(p->pagetable, (uint64)status, (char *)&p->xstate,
                                   sizeof(p->xstate)) < 0){
         freethread(th);
-        release(&th->t_lock);
+        //release(&th->t_lock);
         release(&wait_lock);
-        release(&p->lock);
+        //release(&p->lock);
         return -1;
       }
       else{
         freethread(th);
-        release(&th->t_lock);
+        //release(&th->t_lock);
         release(&wait_lock);
-        release(&p->lock);
+        //release(&p->lock);
         return 0;
       }
     }
   }
-  release (&thisth->t_lock);
+  //release (&thisth->t_lock);
   release(&wait_lock);
-  release(&p->lock);
+  //release(&p->lock);
   return -1;
 }
 void
 wakethreads(void *chan){
+  //printf("inside wakethreads\n");
   //struct thread *thisth = mythread();
   struct proc *p = myproc();
   struct thread *th;
@@ -1297,24 +1338,25 @@ wakethreads(void *chan){
   release(&p->lock);
 }
 void kthread_exit(int status){
+  //printf("inside kthread_exit\n");
   struct thread *th;
   struct thread *thisth= mythread();
   struct proc *p = myproc();
   acquire(&thisth->t_lock);
   thisth->tstate = TZOMBIE;
   //release(thisth->t_lock);
-  int haschildren = 0;
+  int hasThreadsInside = 0;
   acquire(&p->lock);
   for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
     acquire(&th->t_lock);
     if(th->tstate != TUNUSED && th->tstate != TZOMBIE){
-      haschildren=1;
+      hasThreadsInside=1;
     }
     release(&th->t_lock);
   }
   release(&p->lock);
   wakethreads(thisth);
-  if(haschildren == 0){
+  if(hasThreadsInside == 0){
     release(&thisth->t_lock);
     exit(status); //status?
   }

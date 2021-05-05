@@ -101,6 +101,7 @@ struct thread {
   int tid;                    //thread id
   struct proc* parent_proc;        //process that the thread lives in
   int killed;
+  int ind;
   uint kstack;
   void *chan;                 //if non-zero, sleeping on chan
   struct trapframe *trapframe;
@@ -126,7 +127,7 @@ struct proc {
   //uint64 kstack;               // Virtual address of kernel stack
   uint64 sz;                   // Size of process memory (bytes)
   pagetable_t pagetable;       // User page table
-  struct trapframe *trapframe; // data page for trampoline.S
+  void *trapframe; // data page for trampoline.S
   //struct context context;      // swtch() here to run process
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory

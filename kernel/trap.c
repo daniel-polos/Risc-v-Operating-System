@@ -36,6 +36,7 @@ trapinithart(void)
 void
 usertrap(void)
 {
+  //printf("inside usertrap\n");
   int which_dev = 0;
 
   if((r_sstatus() & SSTATUS_SPP) != 0)
@@ -90,12 +91,15 @@ usertrap(void)
 void
 usertrapret(void)
 {
+  //printf("inside usertrapret\n");
   struct proc *p = myproc();
   struct thread *th = mythread();
+  //struct thread *tt;
   // we're about to switch the destination of traps from
   // kerneltrap() to usertrap(), so turn off interrupts until
   // we're back in user space, where usertrap() is correct.
-  
+  //debug
+  // printf("calling to signalhandler\n");
   signalhandler();
   intr_off();
 
@@ -129,8 +133,13 @@ usertrapret(void)
   // and switches to user mode with sret.
   //uint64 fn = TRAMPOLINE + (userret - trampoline);
   //((void (*)(uint64,uint64))fn)(TRAPFRAME, satp);
+  //debug
+   
+  // printf("trapframe field inside proc %d is at address %p\n",p->pid, p->trapframe);
   uint64 fn = TRAMPOLINE + (userret - trampoline);
- ((void (*)(uint64,uint64))fn)(TRAPFRAME, satp);// + XXX SIMION MAIL
+ ((void (*)(uint64,uint64))fn)(TRAPFRAME + (sizeof(struct trapframe)*th->ind) , satp);
+ 
+//  printf("finish usertrapret\n");
 }
 
 // interrupts and exceptions from kernel code go here via kernelvec,
@@ -138,6 +147,7 @@ usertrapret(void)
 void 
 kerneltrap()
 {
+  // printf("inside kernektrap\n");
   int which_dev = 0;
   uint64 sepc = r_sepc();
   uint64 sstatus = r_sstatus();
@@ -181,6 +191,7 @@ clockintr()
 int
 devintr()
 {
+  // printf("inside devintr\n");
   uint64 scause = r_scause();
 
   if((scause & 0x8000000000000000L) &&
