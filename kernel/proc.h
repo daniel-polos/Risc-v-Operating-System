@@ -96,6 +96,18 @@ struct trapframe {
 enum procstate   { UNUSED, USED, ZOMBIE };
 enum threadstate { TUNUSED, TUSED, TSLEEPING, TRUNNABLE, TRUNNING, TZOMBIE }; //THREAD
 
+struct thread {
+  enum threadstate tstate;     
+  int tid;                    //thread id
+  struct proc* parent_proc;        //process that the thread lives in
+  int killed;
+  uint kstack;
+  void *chan;                 //if non-zero, sleeping on chan
+  struct trapframe *trapframe;
+  struct trapframe *user_tf_backup;
+  struct context context;     
+  struct spinlock t_lock;
+};
 // Per-process state
 struct proc {
   struct spinlock lock;
@@ -128,16 +140,3 @@ struct proc {
   int signal_handling;        //indicate if handling the signal. initialize to zero??   
   struct thread threads_Table[NTHREAD]; //THREADS
 };
-
-struct thread {
-  enum threadstate tstate;     
-  int tid;                    //thread id
-  struct proc* parent_proc;        //process that the thread lives in
-  int killed;
-  uint kstack;
-  void *chan;                 //if non-zero, sleeping on chan
-  struct trapframe *trapframe;
-  struct trapframe *user_tf_backup;
-  struct context context;     
-  struct spinlock t_lock;
-}

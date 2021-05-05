@@ -21,16 +21,16 @@ exec(char *path, char **argv)
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
   struct thread *thisth = mythread();
-  struct thread *th
+  struct thread *th;
 
-  for(th=p->threads_Table; t<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
+  for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){ 
     acquire(&th->t_lock);
     if(thisth !=  th){
       if(th->tstate == TSLEEPING){
         th->tstate = TRUNNABLE;
       }
       th->killed = 1;
-      int* status;
+      int* status= 0; //definitely not right!
       kthread_join(th->tid, status); // TODO handle join failed ????
     }
   }
@@ -115,7 +115,7 @@ exec(char *path, char **argv)
   // arguments to user main(argc, argv)
   // argc is returned via the system call return
   // value, which goes in a0.
-  p->trapframe->a1 = sp;
+  thisth->trapframe->a1 = sp;
 
   // Save program name for debugging.
   for(last=s=path; *s; s++)
@@ -127,8 +127,8 @@ exec(char *path, char **argv)
   oldpagetable = p->pagetable;
   p->pagetable = pagetable;
   p->sz = sz;
-  p->trapframe->epc = elf.entry;  // initial program counter = main
-  p->trapframe->sp = sp; // initial stack pointer
+  thisth->trapframe->epc = elf.entry;  // initial program counter = main  THREAD
+  thisth->trapframe->sp = sp; // initial stack pointer                    THREAD
   proc_freepagetable(oldpagetable, oldsz);
 
   //return all custom signals handlers to default - 2.1.2

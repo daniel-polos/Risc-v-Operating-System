@@ -52,14 +52,14 @@ void
 procinit(void)
 {
   struct proc *p;
-  
+  struct thread *th;
   initlock(&pid_lock, "nextpid");
   initlock(&t_id_lock, "next_t_id"); //THREAD
   initlock(&wait_lock, "wait_lock");
   for(p = proc; p < &proc[NPROC]; p++) {
       initlock(&p->lock, "proc");
       //p->kstack = KSTACK((int) (p - proc));
-      for(th=p->threads_Table; t<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
+      for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
         initlock(&th->t_lock, "thread"); //TODO ????
         th->kstack = KSTACK((int) (th - p->threads_Table)); //TODO ????
      }
@@ -94,6 +94,7 @@ myproc(void) {
   pop_off();
   return p;
 }
+
 struct thread*    //TREAD dual function to myproc
 mythread(void) {
   push_off();
@@ -124,6 +125,52 @@ alloc_t_id() { //THREAD
   release(&t_id_lock);
 
   return tid;
+}
+
+static void
+freethread (struct thread *th)
+{
+  if(th->trapframe)
+    kfree((void*)th->trapframe);
+  th->trapframe = 0;
+  th->tid= 0;
+  // Something with proceess parent? doesent really make sense because he still belongs to it
+  th->killed = 0;
+  th->tstate = TUNUSED;
+  th->chan = 0;
+}
+
+
+static struct thread*
+allocthread (struct proc *p){                      //THREAD
+  struct thread *th;
+  for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
+    acquire(&th->t_lock);
+    if(th->tstate == TUNUSED){
+      goto found;
+    }
+    else{
+      release(&th->t_lock);
+    }
+  }
+  return 0;
+
+  found:
+  th->tid = alloc_t_id();
+  th->tstate = TUSED;
+  th->parent_proc = p;
+  if((th->trapframe = (struct trapframe *)kalloc()) == 0){ 
+    freethread(th);
+    release(&th->t_lock);
+    return 0;
+  }
+  
+  // Set up new context to start executing at forkret,
+  // which returns to user space.
+  memset(&th->context, 0, sizeof(th->context)); //THREAD
+  th->context.ra = (uint64)forkret;
+  th->context.sp = th->kstack + PGSIZE;
+  return th;
 }
 
 // Look in the process table for an UNUSED proc.
@@ -184,36 +231,6 @@ found:
   return allocthread(p);
 }
 
-static struct thread*
-allocthread(struct process *p){                      //THREAD
-  struct thread *th;
-  for(th=p->threads_Table; t<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
-    acquire(&th->t_lock);
-    if(th=> TUNUSED == 0){
-      goto found;
-    }
-    else{
-      release(&th->t_lock);
-    }
-  }
-  return 0;
-
-  found:
-  th->tid = alloc_t_id();
-  th->state = TUSED;
-  th->tParent_Process = p;
-  if((th->trapframe = (struct trapframe *)kalloc()) == 0){ 
-    freethread(th);
-    release(th->t_lock);
-    return 0;
-  }
-  
-  // Set up new context to start executing at forkret,
-  // which returns to user space.
-  memset(&th->context, 0, sizeof(th->context)); //THREAD
-  th->context.ra = (uint64)forkret;
-  th->context.sp = th->kstack + PGSIZE;
-}
 
 // free a proc structure and the data hanging from it,
 // including user pages.
@@ -236,23 +253,12 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
-  for(th=p->threads_Table; t<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
+  for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
     freethread(th);
   }
 
 }
-static void
-freethread (struct thread *th)
-{
-  if(th->trapframe)
-    kfree((void*)th->trapframe);
-  th->trapframe = 0;
-  th->tid= 0;
-  // Something with proceess parent? doesent really make sense because he still belongs to it
-  th->killed = 0;
-  th->state = TUNUSED;
-  th->chan = 0;
-}
+
 
 
 
@@ -320,7 +326,8 @@ userinit(void)
   struct proc *p;
 
   th = allocproc();         //THREAD
-  initproc = th->tParent_Process; //THREAD
+  p= th->parent_proc;
+  initproc = p; //THREAD
   
   // allocate one user page and copy init's instructions
   // and data into it.
@@ -377,7 +384,7 @@ fork(void)
   if((nt = allocproc()) == 0){  //THREAD nt instead of np
     return -1;
   }
-  np= nt->tParent_Process; //THREAD
+  np= nt->parent_proc; //THREAD
 
   // Copy user memory from parent to child.
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
@@ -451,7 +458,8 @@ void
 exit(int status)
 {
   struct proc *p = myproc();
-
+  struct thread *th;
+  struct thread *thisth =mythread();
   if(p == initproc)
     panic("init exiting");
 
@@ -476,6 +484,23 @@ exit(int status)
   // Give any children to init.
   reparent(p);
 
+  for(th=proc->threads_Table; th<&proc->threads_Table[NTHREAD]; th++){
+    if(th != thisth){
+      if( th->tstate!=TUNUSED){
+          th->killed = 1;
+      }
+      if(th->tstate == TRUNNABLE || th->tstate == TSLEEPING)
+          th->tstate = TZOMBIE;
+    }
+  }
+  for(th=proc->threads_Table; th<&proc->threads_Table[NTHREAD]; th++){
+        if(th!=thisth && th->tstate != TZOMBIE && th->tstate != TUNUSED)
+            sleep(th, &wait_lock);
+    }
+  
+
+
+
   // Parent might be sleeping in wait().
   wakeup(p->parent);
   
@@ -483,6 +508,7 @@ exit(int status)
 
   p->xstate = status;
   p->state = ZOMBIE;
+  thisth->tstate = TZOMBIE;
 
   release(&wait_lock);
 
@@ -497,7 +523,7 @@ int
 wait(uint64 addr)
 {
   struct proc *np;
-  struct thread *nt;
+  struct thread *th;
   int havekids, pid;
   struct proc *p = myproc();
   acquire(&wait_lock);
@@ -520,7 +546,7 @@ wait(uint64 addr)
           release(&wait_lock);
           return -1;
         }
-          for(th=proc->threads_Table; t<&proc->threads_Table[NTHREAD]; th++){
+          for(th=proc->threads_Table; th<&proc->threads_Table[NTHREAD]; th++){
             acquire(&th->t_lock);
             if(th->tstate == TZOMBIE){
               freethread(th);
@@ -557,7 +583,7 @@ wait(uint64 addr)
 void
 scheduler(void)
 {
-    struct proc *p;
+  struct proc *p;
   struct thread *th;
   struct cpu *c = mycpu(); //sjo==hould
   
@@ -567,17 +593,22 @@ scheduler(void)
     intr_on();
 
     for(p = proc; p < &proc[NPROC]; p++) {
+      printf("in for 1\n");
+
       acquire(&p->lock);
+      printf("in for 2\n");
       if(p->state == USED) { //THREAD USED instead od RUNNABLE
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
         // before jumping back to us.
-        for(th=proc->threads_Table; t<&proc->threads_Table[NTHREAD]; th++){
+        printf("pState == USED\n");
+        for(th=proc->threads_Table; th<&proc->threads_Table[NTHREAD]; th++){
           acquire(&th->t_lock);
           if(th->tstate == TRUNNABLE){
+            printf("tState runnable\n");
             th->tstate = TRUNNING;
             c->proc = p;
-            c->tread- th;
+            c->thread= th;
             swtch(&c->context, &th->context);
 
         // Process is done running for now.
@@ -605,19 +636,19 @@ sched(void)
 {
   int intena;
   struct proc *p = myproc();  //THREAD
-  struct thread *t = mythread();
+  struct thread *th = mythread();
   if(!holding(&p->lock))
     panic("sched p->lock");
   if(mycpu()->noff != 1)
     panic("sched locks");
-  if(p->state == RUNNING)
+  if(th->tstate == TRUNNING)
     panic("sched running");
   if(intr_get())
     panic("sched interruptible");
 
   intena = mycpu()->intena;
   //swtch(&p->context, &mycpu()->context);
-  swtch(&t->context, &mycpu()->context);  //thread
+  swtch(&th->context, &mycpu()->context);  //thread
   mycpu()->intena = intena;
 }
 
@@ -628,7 +659,7 @@ yield(void)
   //struct proc *p = myproc();
   struct thread *th = mythread();
   acquire(&th->t_lock);
-  th->state = TRUNNABLE;
+  th->tstate = TRUNNABLE;
   sched();
   release(&th->t_lock);
 }
@@ -677,7 +708,7 @@ sleep(void *chan, struct spinlock *lk)
 
   // Go to sleep.
   th->chan = chan;       //THREAD
-  th->state = TSLEEPING; //THREAD
+  th->tstate = TSLEEPING; //THREAD
 
   sched();
 
@@ -699,10 +730,10 @@ wakeup(void *chan)
   for(p = proc; p < &proc[NPROC]; p++) {
     if(p != myproc()){
       acquire(&p->lock);
-      for(th=p->threads_Table; t<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
+      for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
         acquire(&th->t_lock);
-        if(th->state == TSLEEPING && th->chan == chan) {
-          th->state = TRUNNABLE;
+        if(th->tstate == TSLEEPING && th->chan == chan) {
+          th->tstate = TRUNNABLE;
         }
         release(&th->t_lock);
       }
@@ -814,7 +845,7 @@ sigret(void)
   struct proc *p = myproc();
   struct thread *th= mythread();
   acquire(&p->lock);
-  acquire(th->t_lock);
+  acquire(&th->t_lock);
   //copyin(p->pagetable, (char*)p->trapframe, (uint64)p->user_tf_backup, sizeof(struct trapframe));
   copyin(p->pagetable, (char*)th->trapframe, (uint64)th->user_tf_backup, sizeof(struct trapframe));
 
@@ -909,13 +940,14 @@ void
 sigkill_func(void)
 {
   struct proc *p = myproc();
+  struct thread *th;
   acquire(&p->lock);
   p->killed = 1;
-  for(th=p->threads_Table; t<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
+  for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
       acquire(&th->t_lock);
       th->killed = 1;
-      if(th->state == TSLEEPING){
-        th->state = TRUNNABLE;
+      if(th->tstate == TSLEEPING){
+        th->tstate = TRUNNABLE;
       }
       release(&th->t_lock);
   }
@@ -1047,8 +1079,9 @@ signalhandler(void)
     //check p->killed????
     //if(p->killed)
     //  return;
-    if(th->killed)
-      return
+    if(th->killed){
+      return;
+    }
     while(p->stopped) {
       if(search_cont_signals())
       {
@@ -1217,19 +1250,19 @@ kthread_join(int thread_id, int* status){
   struct proc *p = myproc();
   struct thread *th;
   acquire(&wait_lock);
-  if(thisth->tid == thread_tid){
+  if(thisth->tid == thread_id){
     return -1;
   }
   acquire(&p->lock);
   acquire(&wait_lock);
-  for(th=p->threads_Table; t<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
+  for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
     if(thread_id != th->tid || th == thisth){
       continue;
     }
-    acquire(th->t_lock);
+    acquire(&th->t_lock);
     if(th->tstate == TZOMBIE){
-      if(status != 0 && copyout(p->pagetable, (uint64)status, (char *)&np->xstate,
-                                  sizeof(np->xstate)) < 0){
+      if(status != 0 && copyout(p->pagetable, (uint64)status, (char *)&p->xstate,
+                                  sizeof(p->xstate)) < 0){
           freethread(th);
           release(&th->t_lock);
           release(&wait_lock);
@@ -1252,8 +1285,8 @@ kthread_join(int thread_id, int* status){
     }
     else{
       sleep(th, &wait_lock);
-       if(status != 0 && copyout(p->pagetable, (uint64)status, (char *)&np->xstate,
-                                  sizeof(np->xstate)) < 0){
+       if(status != 0 && copyout(p->pagetable, (uint64)status, (char *)&p->xstate,
+                                  sizeof(p->xstate)) < 0){
         freethread(th);
         release(&th->t_lock);
         release(&wait_lock);
@@ -1276,31 +1309,31 @@ kthread_join(int thread_id, int* status){
 }
 void
 wakethreads(void *chan){
-  struct thread *thisth = mythread();
+  //struct thread *thisth = mythread();
   struct proc *p = myproc();
   struct thread *th;
   acquire(&p->lock);
-  for(th = p->pthreads; th < &p->pthreads[NTHREAD]; t++){
+  for(th = p->threads_Table; th < &p->threads_Table[NTHREAD]; th++){
     acquire(&th->t_lock);
-    if(th->state == TSLEEPING && th->chan == chan){
-      t->state = RUNNABLE;
+    if(th->tstate == TSLEEPING && th->chan == chan){
+      th->tstate = TRUNNABLE;
     }
-    release(th->t_lock);
+    release(&th->t_lock);
   }
-  release(p->lock);
+  release(&p->lock);
 }
 void kthread_exit(int status){
   struct thread *th;
   struct thread *thisth= mythread();
   struct proc *p = myproc();
-  acquire(thisth->t_lock);
+  acquire(&thisth->t_lock);
   thisth->tstate = TZOMBIE;
   //release(thisth->t_lock);
   int haschildren = 0;
   acquire(&p->lock);
-  for(th=p->threads_Table; t<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
+  for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
     acquire(&th->t_lock);
-    if(th->tstate != TUNUSED t->state != TZOMBIE){
+    if(th->tstate != TUNUSED && th->tstate != TZOMBIE){
       haschildren=1;
     }
     release(&th->t_lock);
@@ -1309,7 +1342,7 @@ void kthread_exit(int status){
   wakethreads(thisth);
   if(haschildren == 0){
     release(&thisth->t_lock);
-    exit();
+    exit( status); //status?
   }
   sched();
 }
