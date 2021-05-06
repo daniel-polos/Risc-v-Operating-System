@@ -37,13 +37,16 @@ struct spinlock wait_lock;
 void
 proc_mapstacks(pagetable_t kpgtbl) {
   struct proc *p;
-  
+  struct thread *th;
   for(p = proc; p < &proc[NPROC]; p++) {
     char *pa = kalloc();
     if(pa == 0)
       panic("kalloc");
-    uint64 va = KSTACK((int) (p - proc));
+    for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){
+    //uint64 va = KSTACK((int) (p - proc), );
+    uint64 va = KSTACK((int) (p - proc), (int) (th - p->threads_Table)); // TODO ????
     kvmmap(kpgtbl, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
+    }
   }
 }
 
@@ -61,7 +64,7 @@ procinit(void)
       //p->kstack = KSTACK((int) (p - proc));
       for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
         initlock(&th->t_lock, "thread"); //TODO ????
-        th->kstack = KSTACK((int) (th - p->threads_Table)); //TODO ????
+        th->kstack = KSTACK((int) (th - p->threads_Table), (int) (th - p->threads_Table)); //TODO ????
      }
   }
 }
@@ -158,11 +161,12 @@ allocthread (struct proc *p){                      //THREAD
   th->tid = alloc_t_id();
   th->tstate = TUSED;
   th->parent_proc = p;
-  if((th->trapframe = (struct trapframe *)kalloc()) == 0){ 
+  th->killed=0;
+  /*if((th->trapframe = (struct trapframe *)kalloc()) == 0){ 
     freethread(th);
     release(&th->t_lock);
     return 0;
-  }
+  }*/
   
   // Set up new context to start executing at forkret,
   // which returns to user space.
@@ -180,7 +184,7 @@ static struct thread*
 allocproc(void)
 {
   struct proc *p;
-
+  struct thread *th;
   for(p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
     if(p->state == UNUSED) {
@@ -205,13 +209,19 @@ found:
   p->pending_signals = 0;
   p->stopped = 0;
   p->signal_handling = 0;
-
+  struct trapframe *trapf;
   // Allocate a trapframe page.
- /* if((p->trapframe = (struct trapframe *)kalloc()) == 0){ THREAD
+  //if((p->trapframe = (struct trapframe *)kalloc()) == 0){
+  if((trapf = (struct trapframe *)kalloc()) == 0){ 
     freeproc(p);
     release(&p->lock);
     return 0;
-  }*/
+  }
+  p->trapframe = trapf;
+  for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++, trapf++){ //thats how to write the for?
+    th->trapframe = trapf;
+    //th->trapframe = p->trapframe +(sizeof (struct trapframe))* (th - p->threads_Table);
+  }
 
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
@@ -599,7 +609,7 @@ scheduler(void)
       //printf("in for 1\n");
 
       acquire(&p->lock);
-      printf("in for 2\n");
+      //printf("in for 2\n");
       if(p->state == USED) { //THREAD USED instead od RUNNABLE
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
@@ -612,8 +622,9 @@ scheduler(void)
             th->tstate = TRUNNING;
             c->proc = p;
             c->thread= th;
+            printf("trapframe: %d", th->trapframe);
             swtch(&c->context, &th->context);
-
+            printf("right after swtch\n");
             // Process is done running for now.
             // It should have changed its p->state before coming back.
             c->proc = 0;
