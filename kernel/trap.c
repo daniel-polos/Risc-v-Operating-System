@@ -140,7 +140,7 @@ usertrapret(void)
   //debug
  // printf("inside usertrapret, the tid is: %d\n", th->tid);
 
-  //printf("inside usertrapret, the epc is: %p\n", th->trapframe->epc);
+  //printf("inside usertrapret, the epc is: %p, thread id: %d\n", th->trapframe->epc, th->tid);
 
   uint64 fn = TRAMPOLINE + (userret - trampoline);
  ((void (*)(uint64,uint64))fn)(TRAPFRAME + (sizeof(struct trapframe)*th->ind) , satp);

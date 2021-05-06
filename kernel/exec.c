@@ -26,12 +26,12 @@ exec(char *path, char **argv)
 
   for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){ 
     if(thisth != th){
-      acquire(&th->t_lock);
+      //acquire(&th->t_lock);
       if(th->tstate == TSLEEPING){
         th->tstate = TRUNNABLE;
       }
       th->killed = 1;
-      release(&th->t_lock);
+      //release(&th->t_lock);
       int* status= 0; //definitely not right!
       kthread_join(th->tid, status); // TODO handle join failed ????
       //release(&th->t_lock);

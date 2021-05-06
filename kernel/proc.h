@@ -99,7 +99,8 @@ enum procstate   { UNUSED, USED, ZOMBIE };
 enum threadstate { TUNUSED, TUSED, TSLEEPING, TRUNNABLE, TRUNNING, TZOMBIE }; //THREAD
 
 struct thread {
-  enum threadstate tstate;     
+  enum threadstate tstate;
+  int xstate;     
   int tid;                    //thread id
   struct proc* parent_proc;        //process that the thread lives in
   int killed;
