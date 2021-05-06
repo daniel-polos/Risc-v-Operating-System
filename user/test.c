@@ -1,64 +1,17 @@
-/*#include "kernel/param.h"
-#include "kernel/types.h"
-#include "kernel/stat.h"
-#include "user/user.h"
-#include "kernel/fs.h"
-#include "kernel/fcntl.h"
-#include "kernel/syscall.h"
-#include "kernel/memlayout.h"
-#include "kernel/riscv.h"
-
-
-void start_func1();
-void kcreate_test();
-
-
-void start_func1(){
-    sleep(20);
-    printf("after first sleep\n");
-    sleep(20);
-    printf("after second sleep\n");
-    sleep(20);
-    printf("after thread sleep\n");
-    kthread_exit(5);
-   
-}
-
-void kcreate_test(){
-    void *stack = malloc(MAX_STACK_SIZE);
-    int tid = kthread_create(start_func1,stack);
-    printf("tid is: %d\n", tid);
-    int status;
-    printf("before kthread_join\n");
-    kthread_join(tid,&status);
-    // free(stack);
-    printf("finished kthread_join with status %d\n", status);
-
-}
-
-int
-main(int argc, char *argv[])
-{
-    kcreate_test();
-    exit(0);
-}*/
-
 #include "kernel/types.h"
 #include "kernel/stat.h"
 #include "user/user.h"
 
 
-//User defined sigals
 #define SIG_FIRST 2
 #define SIG_SECOND 3
-#define SIG_THIRD 4
 
 #define SIG_DFL 0
 #define SIG_IGN 1
 #define SIGKILL 9
 #define SIGSTOP 17
 #define SIGCONT 19
-#define NTHREAD 8 //TRHEAD
+#define NTHREAD 8
 
 struct sigaction {
   void (*sa_handler)(int);
@@ -66,15 +19,20 @@ struct sigaction {
 };
 
 void func_1(int arg){
+    sleep(20);
     printf("inside func_1\n");
     printf("func_1 of SIG_FIRST. Inside process:  %d \n",getpid());
     sleep(3);
+    printf("after sleeping\n");
+
 }
 
 void func_2(int i){
+    sleep(20);
     printf("inside func_2\n");
     printf("func_2 of SIG_THIRD. inside process:  %d \n",getpid());
     sleep(3);
+    printf("after sleeping\n");
 }
 
 void kill_test(void){
@@ -102,142 +60,94 @@ void kill_test(void){
 
 void test_sigaction_cont_stop(void){
     int child_pid;
-    int pid;
-    int status;
-    struct sigaction signal_handler;
-    pid = getpid();
-    sigaction signal_handler.sa_handler = handler3;
-    sigaction signal_handler.sigmask = 0;
-    sigaction(SIG_FIRST,&signal_handler,0);
-    sigaction(SIG_SECOND,&signal_handler,0);
-    if((pid = fork()) == 0){
+    struct sigaction signal_handler1;
+    struct sigaction signal_handler2;
+    signal_handler1.sa_handler = func_1;
+    signal_handler1.sigmask = 0;
+    signal_handler2.sa_handler = func_2;
+    signal_handler2.sigmask = 0;
+    sigaction(SIG_FIRST,&signal_handler1,0);
+    sigaction(SIG_SECOND,&signal_handler2,0);
+    if((child_pid = fork()) == 0){
         printf("child sending sig_stop to parent");
-        kill(pid,SIGSTOP);
+        kill(child_pid,SIGSTOP);
         printf("child goes to sleep to give parent time to handle stop parent\n");
         sleep(40);
-        kill(pid, SIG_FIRST);
+        kill(child_pid, SIG_FIRST);
         printf("child sent parent sigaction func_1 but parent shoudnt handle it because of the sig stop\n");
         sleep(40);
         printf("child sending sig_cont to parent");
-        kill(pid. sigcont);
+        kill(child_pid, SIGCONT);
         sleep(40);
-        kill(pid, SIG_FIRST);
+        kill(child_pid, SIG_FIRST);
     }
     else {
+        int i = 0;
         while(i<60){
             sleep(2);
             i++;
         }
-        printf("finshed\n If only func_3 printed then\n ==== passed ==== test_sigaction_cont_stop ====\n")
+        printf("finshed\n If only func_2 printed then\n ==== passed ==== test_sigaction_cont_stop ====\n");
     }
 }
-
-
-
-
-//verifying successful handler's behaviour changed + handling user handler
-// verify handlers goes to child proc in fork
-void test_sigaction_2(void){
-    int cpid,cstatus;
-
-    struct sigaction sa;
-    sa.sa_handler = handler3;
-    sa.sigmask = 0;
-    sigaction(SIG_2,&sa,0);
-    sigaction(SIG_3,&sa,0);
-
-    if((cpid = fork())>0){
-        sleep(40);
-        kill(cpid,SIG_2);
-        sleep(5);
-
-        kill(cpid,SIG_3);
-        sleep(5);
-        kill(cpid,SIG_2);
-
-        sleep(10);
-        kill(cpid,SIG_4);
-
-        wait(&cstatus);
-        printf("cstat:%d\n",cstatus);
-    }else{
-        while(1){
-            sleep(10);
-            printf("Child ");
-        }
-    } 
-}
-
-//verifying successful handler's behaviour changed + handling user handler
-// verify handlers goes to child proc in fork
-
-void test_restoring_previous_handler(void){
-    int cpid,cstatus;
-
+void restore_handler_test(void){
+    int pid;
     struct sigaction old_act;
     old_act.sa_handler = 0;
     old_act.sigmask = 0;
     
-    struct sigaction sa_1;
-    sa_1.sa_handler = handler3;
-    sa_1.sigmask = 0;
+    struct sigaction signal_handler1;
+    signal_handler1.sa_handler = func_1;
+    signal_handler1.sigmask = 0;
 
-    struct sigaction sa_2;
-    sa_2.sa_handler = handler2;
-    sa_2.sigmask = 0;
+    struct sigaction signal_handler2;
+    signal_handler2.sa_handler = func_2;
+    signal_handler2.sigmask = 0;
 
-    printf("oldact is: %d\n", &old_act);
-    sigaction(SIG_2,&sa_2,0);
-    sigaction(SIG_2,&sa_1,&old_act);
-    sigaction(SIG_2,&old_act, 0);
+    sigaction(SIG_FIRST,&signal_handler1,0);
+    sigaction(SIG_FIRST,&signal_handler2,&old_act);
+    sigaction(SIG_FIRST,&old_act, 0);
 
-    if((cpid = fork())>0){
-         sleep(40);
-         printf("calling to kill from main\n");
-         kill(cpid,SIG_2);
- 
-        wait(&cstatus);
-        printf("cstat:%d\n",cstatus);
-    }else{
-        while(1){
-            sleep(10);
-            printf("Child ");
-        }
-    } 
+    if((pid = fork()) == 0){
+        //kill(pid, SIG_FIRST);
+        printf("child goes to sleep to give time to parent to hanlde the kill\n");
+        sleep(55);
+    }
+    else{
+        kill(pid, SIG_FIRST);
+        printf("parent goes to sleep to give time to the child to send him the kill\n");
+        sleep(25);
+        printf("if func_1 was printed then\n===PASS====restore_test\n");
+    }
 }
 
-void test_child_inherit_mask(void){
-    int cpid,cstatus;
+void inheritence_test(void){
+    
+    int child_pid;
     int mask = (1 << SIGCONT);
+    int i;
+    i=1;
     sigprocmask(mask);
 
-    struct sigaction sa;
-    sa.sa_handler = handler3;
-    sa.sigmask = 0;
-    sigaction(SIG_2,&sa,0);
-
-    if((cpid = fork())>0){
-        //printf("inside parent");
-        sleep(40);
-        kill(cpid,SIG_2);
-        sleep(5);
-
-        kill(cpid,SIGCONT);
-        sleep(5);
-
-        wait(&cstatus);
-        printf("cstat:%d\n",cstatus);
-    }else{
-        while(1){
-            //printf("inside child");
-            sleep(10);
-            kill(cpid,SIG_2);
-            sleep(5);
-            kill(cpid,SIGCONT);
-            sleep(5);
-            //printf("Child ");
+    struct sigaction signal_handler1;
+    signal_handler1.sa_handler = func_1;
+    signal_handler1.sigmask = 0;
+    sigaction(SIG_FIRST,&signal_handler1,0);
+    
+    if((child_pid = fork()) == 0){
+        while(i<1000){
+        sleep(7);
         }
-    } 
+    }
+    else{
+        kill(child_pid, SIGSTOP);
+        sleep(30);
+        kill(child_pid,SIGCONT);
+        sleep(30);
+        kill(child_pid, SIG_FIRST);
+        sleep(60);
+        printf("If func_1 was NOT printed then\n===PASS====inheritence_test\n");
+        } 
 }
 
 
@@ -245,20 +155,16 @@ struct test {
     void (*f)(void);
     char *s;
   } tests[] = {
-    // {test_kill, "test_kill"},
-    // {test_stop_cont, "test_stop_cont"},
-    //{test_stop_cont_2, "test_stop_cont_2"},
-    // {test_stop_cont_3, "test_stop_cont_3"},
-     //{test_sigaction, "test_sigaction"},
-    //{test_restoring_previous_handler, "test_restoring_previous_handler"},
-     //{test_sigaction_2, "test_sigaction_2"},
-      {test_child_inherit_mask, "test_child_inherit_mask"},
+    // {kill_test, "test_kill"},
+    // {test_sigaction_cont_stop, "test_sigaction_cont_stop"},
+    //{restore_handler_test, "restore_handler_test"},
+     {inheritence_test, "test_child_inherit_mask"},
     { 0, 0}, 
   };
 
 int main(void){
     for (struct test *t = tests; t->s != 0; t++) {
-        printf("----------- test - %s -----------\n", t->s);
+        printf("########## TEST: %s ###########\n", t->s);
         t->f();
     }
 

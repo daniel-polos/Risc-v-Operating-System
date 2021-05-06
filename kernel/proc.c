@@ -143,6 +143,9 @@ freethread (struct thread *th)
   th->tid= 0;
   th->tstate = TUNUSED;
   th->chan = 0;
+  if(th->kstack)
+    kfree((void*)th->kstack);
+  th->kstack = 0;
 }
 
 
@@ -803,33 +806,49 @@ sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 {
   struct proc *p = myproc();
 
-  if(signum < 0 || signum > 31)
-    return -1;
+ 	if(signum < 0 || signum > 31)
+   	return -1;
 
-  if(signum == SIGKILL || signum == SIGSTOP)
-    return -1;
+	if(signum == SIGKILL || signum == SIGSTOP)
+   	return -1;
 
   if(act == 0) 
     return -1;
-
-  if(act == (void*)SIG_DFL) {
-    //debug
-    //printf("inside SIG_DFL case\n");
-    if( oldact != 0)
-      memmove(&oldact, &p->signal_handlers[signum], sizeof(void*));
-      //copyout(p->pagetable, (uint64)&oldact, (char*)&p->signal_handlers[signum], sizeof(struct sigaction));
-    p->signal_handlers[signum] = &act;
-  }
-  else {
-    if (oldact != 0) {
-      //debug
-      //printf("memmove to oldact\n");
-      memmove(&oldact, &p->signal_handlers[signum], sizeof(void*));
-    }
-    memmove(&p->signal_handlers[signum], &act, sizeof(void*));
-  }
-  //debug
-  //printf("returning 0\n");
+	
+  //save new act inside local variable act
+	struct sigaction local_act;
+	if(copyin(p->pagetable, (char*)&local_act, (uint64)act, sizeof(struct sigaction)) < 0){
+	  return -1;
+	}
+	
+  //copy pre_act to the old act, for backup
+	void* pre_act = p->signal_handlers[signum];
+	if(pre_act == (void*)SIG_DFL || pre_act == (void*)SIG_IGN){
+	  if(oldact != 0){
+	    if(copyout(p->pagetable,(uint64)oldact, (char*)&pre_act, sizeof(void*)) < 0){
+	      return -1;
+	    }
+	  }
+	  p->signal_handlers[signum] = (void*)act; 
+	}
+  //if this is not a kernel handler
+	else{
+	  struct sigaction* pre_sigact = (struct sigaction*) pre_act;
+	  struct sigaction local_pre_act;
+    
+	  if(copyin(p->pagetable, (char*)& local_pre_act, (uint64) pre_sigact, sizeof(struct sigaction)) < 0){
+	    return -1;
+	  }
+	  if(oldact != 0){
+	    if(copyout(p->pagetable, (uint64)oldact, (char*)&local_pre_act, sizeof(struct sigaction)) < 0){
+	      return -1;
+	    }
+	  }
+	  if(copyout(p->pagetable, (uint64)p->signal_handlers[signum], (char*)& local_act, sizeof(struct sigaction)) < 0){
+	    return -1;
+	    }
+	}
+	
   return 0;
 }
 
@@ -850,7 +869,7 @@ sigret(void)
   release(&p->lock);
   //debug
   printf("end of sigret func\n");
-  //return p->trapframe->eax; // ?????
+  
 }
 
 // Copy to either a user address, or kernel address,

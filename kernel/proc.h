@@ -114,7 +114,7 @@ struct thread {
   struct proc* parent_proc;        //process that the thread lives in
   int killed;
   int ind;
-  uint kstack;
+  uint64 kstack;
   void *chan;                 //if non-zero, sleeping on chan
   struct trapframe *trapframe;
   struct trapframe *user_tf_backup;
