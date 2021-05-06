@@ -135,7 +135,7 @@ alloc_t_id() { //THREAD
 
 static void
 freethread (struct thread *th)
-{
+{  
   th->trapframe = 0;
   th->tid= 0;
   th->tstate = TUNUSED;
@@ -246,6 +246,7 @@ freeproc(struct proc *p)
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
+  
   p->sz = 0; 
   p->pid = 0;
   p->parent = 0;
@@ -253,9 +254,13 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+  
   for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){ //thats how to write the for?
+    acquire(&th->t_lock);
     freethread(th);
+    release(&th->t_lock);
   }
+
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;

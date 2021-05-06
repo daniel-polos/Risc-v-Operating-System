@@ -13,4 +13,4 @@
 #define MAXPATH      128   // maximum file path name
 #define MAX_BSEM     128
 #define MAX_STACK_SIZE 4000 //maximum semaphores allowed
-
+#define STACK_SIZE 4000
