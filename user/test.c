@@ -20,11 +20,13 @@ void kcreate_test(){
     void *stack = malloc(MAX_STACK_SIZE);
     
     printf("calling to kthread_create\n");
-    int tid = kthread_create(start_func1, stack);
+    int tid = kthread_create(&start_func1, stack);
     //int tidd = kthread_create(start_func2,stack);
     int status;
     //printf("%d\n", tidd);
     printf("before kthread_join\n");
+    printf("%d\n", tid);
+
     kthread_join(tid,&status);
     // free(stack);
     printf("finished kthread_join with status %d\n", status);

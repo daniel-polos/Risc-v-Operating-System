@@ -505,7 +505,9 @@ exit(int status)
   //kill all threads
   for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){
     if(th!=thisth){
+         printf("before aqciring\n");
           acquire(&th->t_lock);
+          printf("after aqciring\n");
           th->killed = 1;
           if (th->tstate == TSLEEPING) {
             th->tstate = TRUNNABLE;
@@ -517,7 +519,12 @@ exit(int status)
 
   for(th=p->threads_Table; th<&p->threads_Table[NTHREAD]; th++){
         if(th!=thisth) {
+          printf("before aqciring3\n");
+          if(holding(&th->t_lock)){
+            printf("holdin it while unnecesesery");
+          }
           acquire(&th->t_lock);
+          printf("after aqciring3\n");
           kthread_join(th->tid, 0);
           release(&th->t_lock);
         }       
@@ -690,8 +697,10 @@ sched(void)
   struct thread *th = mythread();
   if(!holding(&th->t_lock))
     panic("sched th->t_lock");
-  if(mycpu()->noff != 1)
+  //if((mycpu()->noff != 1){
+  if(mycpu()->noff >2 || mycpu()->noff < 1) // DANIEL ADDDDDD
     panic("sched locks");
+  //}
   if(th->tstate == TRUNNING)
     panic("sched running");
   if(intr_get())
@@ -1260,7 +1269,7 @@ usersignalhandler(struct proc *p,  struct thread *th, int signum) {
 }
 int
 kthread_join(int thread_id, int* status){
-  printf("inside kthread_join\n");
+  //printf("inside kthread_join\n");
   struct thread *thisth = mythread();
   struct proc *p = myproc();
   struct thread *th;
@@ -1298,7 +1307,7 @@ kthread_join(int thread_id, int* status){
       return 0; 
     }
     else{
-      sleep(th,&wait_lock);
+      //sleep(th,&wait_lock); //DANIEL TODO JUST CHECKING
        if(status != 0 && copyout(p->pagetable, (uint64)status, (char *)&p->xstate,
                                   sizeof(p->xstate)) < 0){
         freethread(th);
@@ -1388,7 +1397,7 @@ kthread_create(void (*start_func)(),void *stack) {
   //debug
   printf("start_func adder: %p\n", start_func);
   release(&p->lock);
-
+  release(&th->t_lock); //DANIEL ADDEDDD !!!!!
   //debug
   printf("inside kthread_create, tid: %d\n", th->tid);
   return th->tid; 
