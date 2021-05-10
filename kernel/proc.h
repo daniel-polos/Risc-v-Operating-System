@@ -98,6 +98,15 @@ struct trapframe {
 enum procstate   { UNUSED, USED, ZOMBIE };
 enum threadstate { TUNUSED, TUSED, TSLEEPING, TRUNNABLE, TRUNNING, TZOMBIE }; //THREAD
 
+enum semaphore_state {BUNUSED,BUSED};    //BSEMAPHORES
+
+struct BSemaphore {
+  int id; //  descriptor
+	int lock; // 1/0 depending weather locked or not
+  //int sleep[MAX_UTHREADS];
+	enum semaphore_state state;
+};
+
 struct thread {
   enum threadstate tstate;
   int xstate;     

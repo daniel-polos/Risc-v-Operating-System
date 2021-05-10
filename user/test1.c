@@ -32,20 +32,6 @@ void handler3(int i){
     printf("SIG_3 handled by %d with i=%d\n",getpid(),i);
 }
 
-void test_kill(void){
-    int child_pid,cstatus;
-    if((child_pid = fork())>0){
-        sleep(30);
-        kill(child_pid, SIGKILL);
-        printf("after calling kill\n");
-        wait(&cstatus);
-        printf("killed child!\n");
-    }else{
-        while(1){
-            sleep(4);
-        }
-    }
-}
 
 // expected result: print child, stops, cotinue, and killed.
 void test_stop_cont(void){
@@ -70,6 +56,22 @@ void test_stop_cont(void){
         }
     }
 }
+
+void kill_test(void){
+    int child_pid, cstatus;
+    if((child_pid = fork())>0){
+        sleep(30);
+        kill(child_pid, SIGKILL);
+        printf("after calling kill\n");
+        wait(&cstatus);
+        printf("killed child!\n");
+    }else{
+        while(1){
+            sleep(4);
+        }
+    }
+}
+
 
 // expected result: print child, stops, cotinue is blocked , and killed.
 // verifying blocking sigkill and sigcont is impossible +  ignore sigcont
@@ -255,13 +257,13 @@ void test_child_inherit_mask(void){
         printf("cstat:%d\n",cstatus);
     }else{
         while(1){
-            printf("inside child");
+            //printf("inside child");
             sleep(10);
             kill(cpid,SIG_2);
             sleep(5);
             kill(cpid,SIGCONT);
             sleep(5);
-            printf("Child ");
+            //printf("Child ");
         }
     } 
 }
@@ -271,7 +273,7 @@ struct test {
     void (*f)(void);
     char *s;
   } tests[] = {
-    // {test_kill, "test_kill"},
+    // {kill_test, "kill_test"},
     // {test_stop_cont, "test_stop_cont"},
     //{test_stop_cont_2, "test_stop_cont_2"},
     // {test_stop_cont_3, "test_stop_cont_3"},

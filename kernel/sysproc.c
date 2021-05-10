@@ -173,4 +173,43 @@ sys_kthread_id(void){
   return 0;
 }
 
+uint64
+sys_bsem_alloc(void){
+  return bsem_alloc();
+}
 
+uint64
+sys_bsem_free(void){
+  int id;
+
+  if (argint(0, &id) < 0){
+    return -1;
+  }
+
+  bsem_free(id);
+  return 0;
+}
+
+uint64
+sys_bsem_down(void){
+  int status;
+
+  if (argint(0, &status) < 0){
+    return -1;
+  }
+
+  bsem_down(status);
+  return 0;
+}
+
+uint64
+sys_bsem_up(void){
+  int status;
+
+  if (argint(0, &status) < 0){
+    return -1;
+  }
+
+  bsem_up(status);
+  return 0;
+}

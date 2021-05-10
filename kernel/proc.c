@@ -24,7 +24,9 @@ extern void forkret(void);
 static void freeproc(struct proc *p);
 
 extern char trampoline[]; // trampoline.S
-
+struct BSemaphore semaphores[MAX_BSEM]; //BSemaphore -- array of BSemaphores
+int bSem_counter = 1 ; //BSEMAPHORE
+struct spinlock bsem_lock;
 // helps ensure that wakeups of wait()ing
 // parents are not lost. helps obey the
 // memory model when using p->parent.
@@ -58,6 +60,7 @@ procinit(void)
   initlock(&pid_lock, "nextpid");
   initlock(&t_id_lock, "next_t_id"); //THREAD
   initlock(&wait_lock, "wait_lock");
+  initlock(&bsem_lock, "semaphores");
   for(p = proc; p < &proc[NPROC]; p++) {
       initlock(&p->lock, "proc");
       //p->kstack = KSTACK((int) (p - proc));
@@ -1272,4 +1275,114 @@ int
 kthread_id() {
   struct thread *t = mythread();
   return t->tid;
+}
+int
+bsem_alloc() {
+  acquire(&bsem_lock);
+ // int i;
+  struct BSemaphore *found_bsem;
+  
+  for(found_bsem = semaphores; found_bsem < &semaphores[MAX_BSEM]; found_bsem++){
+      
+    if (found_bsem->state == BUNUSED){
+      goto found;
+    }
+  }
+  release(&bsem_lock);
+  return -1;
+  found:
+    bSem_counter++;
+    found_bsem->id = bSem_counter;
+    found_bsem->lock = 1; // not locked
+    found_bsem->state = BUSED;
+    release(&bsem_lock);
+    return found_bsem->id;
+}
+void
+bsem_free(int id){
+  acquire(&bsem_lock);
+  struct BSemaphore *found_bsem;
+  for(found_bsem = semaphores; found_bsem < &semaphores[MAX_BSEM]; found_bsem++){
+    if(found_bsem->id == id && found_bsem->state == BUSED){
+      //found_bsem = semaphores[i];
+      goto found;
+    }
+  }
+  release(&bsem_lock);
+  return;
+  found:
+    found_bsem->id=0;
+    found_bsem->lock=1; 
+    found_bsem->state = BUNUSED;
+    bSem_counter= bSem_counter-1;
+    release(&bsem_lock);
+}
+
+void
+bsem_down(int sid){
+  acquire(&bsem_lock);
+  struct BSemaphore *found_bsem;
+  for(found_bsem = semaphores; found_bsem < &semaphores[MAX_BSEM]; found_bsem++){
+    //if(found_bsem->id == sid && found_bsem->state == BUSED){
+      //found_bsem = semaphores[i];
+    if(found_bsem->id == sid){
+      //printf("yeah id is fine");
+      if(found_bsem->state == BUSED){
+      //found_bsem->state == BUSED){
+      goto found;
+      }
+    }
+  }
+  printf("no good1\n");
+  release(&bsem_lock);
+  return; // no BSEMAPHORE
+  found:
+  
+  while (found_bsem->lock == 0) { 
+      sleep(found_bsem, &bsem_lock);
+      //sleep((void*)semaphores[1], &bsem_lock);
+
+  }
+  found_bsem->lock=0;
+  release(&bsem_lock);
+}
+
+void
+bsem_up(int sid){
+  acquire(&bsem_lock);
+  struct BSemaphore *found_bsem;
+ // struct proc *p;
+ // struct thread *th;
+  for(found_bsem = semaphores; found_bsem < &semaphores[MAX_BSEM]; found_bsem++){
+    if(found_bsem->id == sid && found_bsem->state == BUSED){
+      //found_bsem = semaphores[i];
+      goto found;
+    }
+  }
+  //printf("no good2\n");
+  release(&bsem_lock);
+  return; // no BSEMAPHORE
+  found:
+    if(found_bsem->lock == 0) {
+        wakeup(found_bsem);
+        found_bsem->lock = 1;
+        
+        //for(p = proc; p < &proc[NPROC]; p++) {
+           //for(th = p->threads_Table; th < &p->threads_Table[NTHREAD]; th++){
+             //printf("before acquire\n");
+          //    acquire(&th->t_lock);
+            //  //printf("after acquire\n");
+              //if(th->tstate == TSLEEPING && (void*)th->chan == (void*)found_bsem){
+                //th->tstate = TRUNNABLE;
+              //}
+            //  release(&th->t_lock);
+          // }
+           //release(&bsem_lock);
+       // }
+    }
+    else{
+      release(&bsem_lock);
+      return;
+    }
+    release(&bsem_lock);
 }
