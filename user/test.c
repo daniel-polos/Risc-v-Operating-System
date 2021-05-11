@@ -158,7 +158,7 @@ struct test {
     // {kill_test, "test_kill"},
     // {test_sigaction_cont_stop, "test_sigaction_cont_stop"},
     //{restore_handler_test, "restore_handler_test"},
-     {inheritence_test, "test_child_inherit_mask"},
+     {inheritence_test, "inheritence_test"},
     { 0, 0}, 
   };
 
