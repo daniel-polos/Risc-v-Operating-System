@@ -246,9 +246,10 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 uint64
 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 {
+  struct proc *p = myproc();
   char *mem;
-  uint64 a;
-  int index, returnVal;
+  uint64 a, pa;
+  int index;
   if(newsz < oldsz)
     return oldsz;
 
@@ -261,90 +262,152 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
       return 0;
     }
     memset(mem, 0, PGSIZE);
-    if (myproc()->pid < 2){
+    if (p->pid < 2){
       goto handle_Init_And_Shell
     }
-    while(index< MAX_PSYC_PAGES){ //MAX_PSYC_PAGES
-      if(myproc()->ram_page_array[index].used)==1){
-        index++;
-      }
-      else{
-        break;
-      }
-    }
+    index = find_free_page_in_main_mem();
     // now index is either an inex of an unused page or there aren't any and it is 16.
+    //mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
+
     //first case
-    if(index<MAX_PSYC_PAGES){ //MAX_PSYC_PAGES
+    if(index > 0 && index < MAX_PSYC_PAGES){ //MAX_PSYC_PAGES
       if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
         kfree(mem);
         uvmdealloc(pagetable, a, oldsz);
         return 0;
       }
-      myproc()->ram_page_array[index].used = 1;
-      myproc()->ram_page_array[index].p_v_address = a;
+      p->ram_page_array[index].used = 1;
+      p->ram_page_array[index].p_v_address = a;
       //myproc()->ram_page_array[index].pagetable = pagetable; TODO still empty in page struct
       continue; // TODO continue works in FOR?
     }
     else{
-      returnVal = swap_and_alloc((uint64)mem);
-      if (returnVal ==0){
-        return returnVal;
-      }
-      continue;
-    }
-    handle_Init_And_Shell:
-    if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
       kfree(mem);
-      uvmdealloc(pagetable, a, oldsz);
-      return 0;
+      pa = swap_page(pagetable);
+      if (pa ==0){
+        printf("process %d needs more than 32 pages...", p->pid);
+        exit();
+      }
+      //CHECK IF SUCCESS????????
+      load_page_to_main_mem(pa, (char*)a);
     }
+    continue;    
+  
+ 
+    handle_Init_And_Shell:
+      if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
+        kfree(mem);
+        uvmdealloc(pagetable, a, oldsz);
+        return 0;
+      }
   }
   return newsz;
 }
 
+
 int
-swap_and_alloc(ui mem)
-{
-  move_random_page_to_swapFile();
-  //TODO moving a page from swapFile to ram
-}
-
-
-void
-move_random_page_to_swapFile(pagetable_t pagetable;){
-  struct proc *currproc = myproc();
-  int index_in_swap_file, index_in_ram;
-  pte_t *pte;
-  struct page page;
-  index_in_swap_file=0;
-  while(index_in_swap_file< MAX_PSYC_PAGES){ 
-    if(currproc->swap_page_array[index_in_swap_file].used)==1){
-      index_in_swap_file++;
-     }
-    else{ // unused -> free space for the swapped out page
+load_page_to_main_mem(uint64 pa,void *va){
+  int ind = 0;
+  struct proc *p = myproc();
+  
+  for(ind; ind < MAX_PSYC_PAGES; ind++) {
+    if(p->ram_page_array[ind].used){
+      continue;
+    }
+    else{
       break;
     }
   }
-  //now index_in_swap_file in index of open space
-
-  index_in_ram=0;
-  while(index_in_ram < MAX_PSYC_PAGES){
-    if(myproc()->ram_page_array[index_in_ram].used==1){
-      break; //found a page to swap out (into the free space in swap file)
-    }
-    index_in_ram++;
+  if(ind > MAX_PSYC_PAGES -1){
+    return -1;
   }
-  page = currproc->ram_page_array[index_in_ram];
-  writeToSwapFile(currproc, (char*)currproc->ram_page_array[index_in_ram].p_v_address, index_in_swap_file*PGSIZE, PGSIZE);
-  currproc-> swap_page_array[index_in_swap_file]= page;
-  pte = walk(pagetable, page.p_v_address, 0); // TODO thats how you bring the relevant pte?
-  *pte |= PTE_PG;
-  *pte &= ~PTE_V;
+  if(mappages(p->pagetable, va, PGSIZE, pa, PTE_W|PTE_U) != 0){
+    uvmdealloc(p->pagetable, PGSIZE, PGSIZE);
+    kfree(pa); //FREE PYSICAL ADDRESS????????????????
+    return 1;
+  }
+  p->ram_page_array[ind].used = 1;
+  p->ram_page_array[ind].p_v_address = va; 
+
+  return 0;
 }
-// Deallocate user pages to bring the process size from oldsz to
-// newsz.  oldsz and newsz need not be page-aligned, nor does newsz
-// need to be less than oldsz.  oldsz can be larger than the actual
-// process size.  Returns the new process size.
+
+
+
+uint64
+find_free_swaped_page(pagetable_t pagetable)
+{
+
+  int ind = 0;
+  struct proc *p = myproc();
+
+  //NEED TO CHECK????? there is a limit on number of pages in file?
+  while(ind < MAX_PSYC_PAGES) {
+    if(!p->swap_page_array[ind].used){
+      return ind;
+    }
+    ind++;
+  }
+
+  return -1;
+}
+
+swap_page(){
+  int ind;
+
+  ind = find_free_swaped_page();
+  if(ind < 0) {
+    return 0;
+  }
+  //selecet unused page in main mem and write it to the swapFIle
+  mm_ind = select_page_to_swap();
+  //save the virtual address of the swaped page
+  void *mm_vaddr = p->ram_page_array[mm_ind].p_v_address;
+  writeToSwapFile(p, mm_vaddr, ind*PGSIZE, PGSIZE);
+  p->swap_page_array[ind].used = 1;
+  p->swap_page_array[ind].p_v_address = mm_vaddr;
+  p->ram_page_array[mm_ind].used = 0;
+
+  //NEED TO SEND TO WALKADDER THE align_mm_vaddr???????
+  void * align_mm_vaddr = (void *)PGROUNDDOWN(mm_vaddr);
+  pte_t *pte = walkaddr(pagetable, (uint64)align_mm_vaddr);
+  uint64 pa = PTE2PA(*pte);
+  memset((void *)pa, 0, PGSIZE); 
+  
+  //UPDATE PTE FLAGS
+  *pte |= PTE_PG; //page is on dick
+  *pte &= ~PTE_V; //page is not valid
+  //REFRESH TLB
+  sfence_vma();
+
+  return pa;
+}
+
+//NOT IMPLEMENTED YET - SECTION 2
+//return index of the chosen page in the array of main mem pages
+int
+select_page_to_swap(){
+  return 0;
+}
+
+int
+find_free_page_in_main_mem(){
+  struct proc *p = myproc();
+  int ind = 0;
+
+  while(ind < MAX_PSYC_PAGES){ 
+    if(currproc->ram_page_array[index_in_swap_file].used)==1){
+      ind++;
+     }
+    else{ // unused -> free space for the swapped out page
+      return ind;
+    }
+  }
+
+  return -1;
+}
+
+
 uint64
 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 {
