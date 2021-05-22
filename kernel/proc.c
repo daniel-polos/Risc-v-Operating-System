@@ -140,12 +140,22 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+  
   //add ass3
   if(p->pid>2){
-  int success =createSwapFile(p);
+  int success = createSwapFile(p);
   if (success != 0)
     panic("could not create a swapfile to current process");
   }
+
+  //aloc pages
+  int i = 0;
+  while(i < 16) {
+    p->ram_page_array[i].used = 0;
+    p->swap_page_array[i].used = 0;
+    i++;
+  }
+  
   return p;
 }
 
@@ -277,6 +287,7 @@ growproc(int n)
 int
 fork(void)
 {
+  char buff[PGSIZE];
   int i, pid;
   struct proc *np;
   struct proc *p = myproc();
@@ -292,6 +303,21 @@ fork(void)
     release(&np->lock);
     return -1;
   }
+
+  /* The forked process should have its own swap file whose 
+  initial content is identical to the parent's file
+  */
+  if(p->pid>2){
+    int i = 0;
+    while(i < MAX_PSYC_PAGES){
+      readFromSwapFile(p, buff, i*PGSIZE, PGSIZE);
+      writeToSwapFile(np, buff, i*PGSIZE, PGSIZE);
+      i++;
+    }
+    memmove(p->ram_page_array, np->ram_page_array, sizeof(struct page)*MAX_PSYC_PAGES);
+    memmove(p->swap_page_array, np->swap_page_array, sizeof(struct page)*MAX_PSYC_PAGES);
+  }
+
   np->sz = p->sz;
 
   // copy saved user registers.
