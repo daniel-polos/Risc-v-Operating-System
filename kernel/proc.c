@@ -97,6 +97,7 @@ allocpid() {
   return pid;
 }
 
+
 // Look in the process table for an UNUSED proc.
 // If found, initialize state required to run in the kernel,
 // and return with p->lock held.
@@ -118,6 +119,7 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  p->insertToMemInd = 0;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -281,12 +283,13 @@ growproc(int n)
   return 0;
 }
 
+
 // Create a new process, copying the parent.
 // Sets up child kernel stack to return as if from fork() system call.
 int
 fork(void)
 {
-//  char buff[PGSIZE];
+  char* buff = kalloc();
   int i, pid;
   struct proc *np;
   struct proc *p = myproc();
@@ -305,16 +308,24 @@ fork(void)
   /* The forked process should have its own swap file whose 
   initial content is identical to the parent's file
   */
-  /*if(p->pid>2){
-    int i = 0;
-    while(i < MAX_PSYC_PAGES){
+  
+  release(&np->lock);
+  createSwapFile(np);
+  acquire(&np->lock);
+
+  if(p->pid>2 && p->swapFile){
+    for(int i = 0; i < MAX_PSYC_PAGES; i++){
       readFromSwapFile(p, buff, i*PGSIZE, PGSIZE);
       writeToSwapFile(np, buff, i*PGSIZE, PGSIZE);
-      i++;
     }
-    memmove(p->ram_page_array, np->ram_page_array, sizeof(struct page)*MAX_PSYC_PAGES);
-    memmove(p->swap_page_array, np->swap_page_array, sizeof(struct page)*MAX_PSYC_PAGES);
-  }*/
+
+    for(int i = 0; i < MAX_PSYC_PAGES; i++){
+      np->ram_page_array[i] = p->ram_page_array[i];
+      np->swap_page_array[i] = p->swap_page_array[i];
+    }
+
+  }
+
   np->sz = p->sz;
 
   // copy saved user registers.
@@ -457,6 +468,22 @@ wait(uint64 addr)
   }
 }
 
+void
+update_page_counter(void){
+  struct proc *p = myproc();
+  struct page* curr_page;
+  
+  for(int i = 0; i < MAX_PSYC_PAGES; i++){
+    curr_page = &p->ram_page_array[i];
+    p->ram_page_array[i].counter = p->ram_page_array[i].counter >> 1;
+    pte_t *pte = walk(p->pagetable, (uint64)curr_page->p_v_address, 0);
+    if(*pte & PTE_A){
+      p->ram_page_array[i].counter = p->ram_page_array[i].counter | 0x80000000;
+      *pte &= ~PTE_A;
+    } 
+  }
+}
+
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
 // Scheduler never returns.  It loops, doing:
@@ -485,8 +512,13 @@ scheduler(void)
         c->proc = p;
         swtch(&c->context, &p->context);
 
+
         // Process is done running for now.
         // It should have changed its p->state before coming back.
+        
+#if (defined(NFUA) || defined(LAPA))
+        update_page_counter();
+#endif
         c->proc = 0;
       }
       release(&p->lock);
@@ -684,3 +716,5 @@ procdump(void)
     printf("\n");
   }
 }
+
+

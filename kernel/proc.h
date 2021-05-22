@@ -88,6 +88,13 @@ enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 struct page { //ass3
   int used;
   uint64 p_v_address; //virtual address TODO can be void*
+  //#if defined(NFUA) ||defined(LAPA)
+  int counter;
+  //#endif
+  //#if defined(SCFIFO)
+  int insert_to_mem_ind;
+  //#endif
+
 };
 
 // Per-process state
@@ -114,6 +121,7 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 
+  int insertToMemInd;
   struct file *swapFile;
   struct page ram_page_array[MAX_PSYC_PAGES]; //ass3
   struct page swap_page_array[MAX_PSYC_PAGES]; //ass3

@@ -56,12 +56,28 @@ LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
+ifndef SELECTION
+SELECTION := SCFIFO
+endif
+
 CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb
 CFLAGS += -MD
 CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
 CFLAGS += -I.
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
+CFLAGS += -D $(SELECTION)
+# #CFLAGS += -D $(SELECTION)
+# ifeq ($(CELECTION), NFUA)
+# 	CFLAGS += -D NFUA
+# else ifeq ($(CELECTION), LAPA)
+# 	CFLAGS += -D LAPA
+# else ifeq ($(CELECTION), SCFIFO)
+# 	CFLAGS += -D SCFIFO
+# else 
+# 	CFLAGS += -D NONE
+# endif
+
 
 # Disable PIE when possible (for Ubuntu 16.10 toolchain)
 ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]no-pie'),)

@@ -37,7 +37,6 @@ void
 usertrap(void)
 {
   int which_dev = 0;
-  uint64 va;
 
   if((r_sstatus() & SSTATUS_SPP) != 0)
     panic("usertrap: not from user mode");
@@ -52,6 +51,8 @@ usertrap(void)
   p->trapframe->epc = r_sepc();
   
   if(r_scause() == 8){
+    //debug
+    //printf("calling exit\n");
     if(p->killed)
       exit(-1);
 
@@ -65,10 +66,14 @@ usertrap(void)
 
     syscall();
   }
-  else if(r_scause() == 13 || r_scause() == 15){
-    va = r_stval();
-    handle_pagefault((uint64)va);
-  
+  else if(r_scause() == 13 || r_scause() == 15 || r_scause() == 12){
+    //debug
+    printf("pagefault!!\n");
+    #if defined(NFUA) || defined(LAPA) || defined(SCFIFO)
+      uint64 va;
+      va = PGROUNDDOWN(r_stval());
+      handle_pagefault((uint64)va);
+    #endif
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
@@ -77,9 +82,11 @@ usertrap(void)
     p->killed = 1;
   }
 
-  if(p->killed)
+  if(p->killed){
+    //debug
+    printf("calling exit\n");
     exit(-1);
-
+  }
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2)
     yield();
@@ -229,8 +236,8 @@ handle_pagefault(uint64 va){
   uint64 pa;
   struct proc *p = myproc();
   char buffer[PGSIZE];
-  uint64 align_va = PGROUNDDOWN(va); //NEEDED HERE?
-  pte_t *pte = walk(p->pagetable, align_va, 0);
+  // CHECK
+  pte_t *pte = walk(p->pagetable, va, 0);
 
   
   if(pte == 0){
@@ -239,12 +246,12 @@ handle_pagefault(uint64 va){
   if(!(*pte & PTE_PG)){
     panic("handeling page fault, page is not in the swap file");
   }
-  if(*pte & ~PTE_V){ //CHECK ????????????
+  if(*pte & PTE_V){ //CHECK ????????????
     panic("handeling page fault, PTE is not valid");
   }
 
   while(ind < 16){
-    if(p->swap_page_array[ind].p_v_address == align_va)
+    if(p->swap_page_array[ind].p_v_address == va)
       break;
     ind ++;
   }
@@ -269,11 +276,10 @@ handle_pagefault(uint64 va){
       pa = swap_page(p->pagetable);
       if (pa ==0){
         printf("process %d needs more than 32 pages...", p->pid);
-        exit(0); //??
+        //exit(0); //??
       }
-      load_page_to_main_mem(pa, (char*)align_va);
+      load_page_to_main_mem(pa, (char*)va);
       memmove((void *)pa, buffer, PGSIZE);   
-
   }
 
   else{
@@ -282,15 +288,14 @@ handle_pagefault(uint64 va){
       uvmdealloc(p->pagetable, PGSIZE, PGSIZE);
       return; //?????????
     }
-    if(mappages(p->pagetable, PGSIZE, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
+    if(mappages(p->pagetable, va, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
         kfree(mem);
         uvmdealloc(p->pagetable, PGSIZE, PGSIZE);
         return; //???????????
     }
     memmove(mem, buffer, PGSIZE);
     p->ram_page_array[free_page_ind].used = 1;
-    p->ram_page_array[free_page_ind].p_v_address = align_va;
+    p->ram_page_array[free_page_ind].p_v_address = va;
   }
-  
 }
 

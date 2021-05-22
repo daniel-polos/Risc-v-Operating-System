@@ -215,33 +215,6 @@ uvminit(pagetable_t pagetable, uchar *src, uint sz)
   memmove(mem, src, sz);
 }
 
-// Allocate PTEs and physical memory to grow process from oldsz to
-// newsz, which need not be page aligned.  Returns new size or 0 on error.
-/*uint64
-uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
-{
-  char *mem;
-  uint64 a;
-
-  if(newsz < oldsz)
-    return oldsz;
-
-  oldsz = PGROUNDUP(oldsz);
-  for(a = oldsz; a < newsz; a += PGSIZE){
-    mem = kalloc();
-    if(mem == 0){
-      uvmdealloc(pagetable, a, oldsz);
-      return 0;
-    }
-    memset(mem, 0, PGSIZE);
-    if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
-      kfree(mem);
-      uvmdealloc(pagetable, a, oldsz);
-      return 0;
-    }
-  }
-  return newsz;
-}*/
 
 
 uint64
@@ -279,19 +252,141 @@ find_free_page_in_main_mem(){
   return -1;
 }
 
-//NOT IMPLEMENTED YET - SECTION 2
+
+int 
+handle_NFUA_scheme(){
+  int selected_page_ind = -1;
+  struct proc* p = myproc();
+  struct page* pages = p->ram_page_array;
+  struct page* curr_page;
+  uint curr;
+  uint lowest = -1;
+  for(int i = 0; i < MAX_PSYC_PAGES; i++){
+    curr_page = &pages[i];
+    /*lowest will be first intialized with the
+    counter of the first used page*/
+    if(lowest == -1 && curr_page->used){
+      lowest = curr_page->counter;
+      selected_page_ind = i;
+    }
+    curr = curr_page->counter;
+  
+    if(lowest != -1){
+      if(curr < lowest && curr_page->used){
+        lowest = curr;
+        selected_page_ind = i;
+      }
+    }
+  }
+
+  return selected_page_ind;
+}
+
+uint
+num_of_ones(uint counter){
+  int res = 0;
+  while(counter){
+    if(counter%2 != 0)
+      res++;
+  }
+  return res;
+}
+
+int 
+handle_LAPA_scheme(){
+  int selected_page_ind = -1;
+  struct proc* p = myproc();
+  struct page* pages = p->ram_page_array;
+  struct page* curr_page;
+  uint curr;
+  uint lowest = -1;
+  for(int i = 0; i < MAX_PSYC_PAGES; i++){
+    curr_page = &pages[i];
+    if(lowest == -1 && curr_page->used){
+      lowest = num_of_ones(curr_page->counter);
+      selected_page_ind = i;
+    }
+    curr = num_of_ones(curr_page->counter);
+
+    if(lowest != -1){
+      if((curr < lowest && curr_page->used) ||
+      ((curr == lowest && curr_page->counter < pages[selected_page_ind].counter) && curr_page->used)){
+        lowest = curr;
+        selected_page_ind = i;
+      }
+    }
+  }
+  return selected_page_ind;
+}
+
+
+int 
+handle_SCFIFO_scheme(){
+  int selected_page_ind = -1;
+  struct proc* p = myproc();
+  struct page* pages = p->ram_page_array;
+  struct page* curr_page;
+  struct page* selected_page;
+  uint curr;
+  uint lowest = p->insertToMemInd;
+  for(int i = 0; i < MAX_PSYC_PAGES; i++){
+    curr_page = &pages[i];
+    curr = curr_page->insert_to_mem_ind;
+    pte_t *pte = (void *)walkaddr(p->pagetable, (uint64)curr_page->p_v_address);
+
+    if(lowest){
+      if(curr < lowest && curr_page->used && (*pte & ~PTE_R)){
+        //*pte &= ~PTE_A;
+        lowest = curr;
+        selected_page_ind = i;
+      }
+      if(curr_page->used && (*pte & PTE_R)){
+       curr_page->insert_to_mem_ind = p->insertToMemInd;
+       p->insertToMemInd++;
+       *pte &= ~PTE_R; 
+      }
+    }
+
+
+  }
+    
+  //CHECK! IS NEEDED?????????
+  if(selected_page_ind != -1){
+    selected_page = &pages[selected_page_ind];
+    pte_t *pte = (void *)walkaddr(p->pagetable, (uint64)selected_page->p_v_address);
+    *pte &= ~PTE_R;   
+  }
+
+  return selected_page_ind;
+}
+
+
+
 //return index of the chosen page in the array of main mem pages
 int
 select_page_to_swap(){
-  return 0;
+  //debug
+  printf("selecting page to swap\n");
+  #if defined(NFUA)
+    return handle_NFUA_scheme();
+  #endif
+  #if defined(LAPA)
+    return handle_LAPA_scheme();
+  #endif
+  #if defined(SCFIFO)
+    return handle_SCFIFO_scheme();
+  #endif
+  
+  panic("unknown swap page algorithm\n");
 }
+
 
 uint64
 swap_page(pagetable_t pagetable){
   //struct proc *p = myproc();
   int ind;
   int mm_ind;
- 
+
   ind = find_free_swaped_page();
   if(ind < 0) {
     return 0;
@@ -300,12 +395,14 @@ swap_page(pagetable_t pagetable){
   mm_ind = select_page_to_swap();
   //save the virtual address of the swaped page
   uint64 mm_vaddr = myproc()->ram_page_array[mm_ind].p_v_address;
+  //TO CHECK
   writeToSwapFile(myproc(), (void *)mm_vaddr, ind*PGSIZE, PGSIZE);
   myproc()->swap_page_array[ind].used = 1;
   myproc()->swap_page_array[ind].p_v_address = mm_vaddr;
   myproc()->ram_page_array[mm_ind].used = 0;
 
   //NEED TO SEND TO WALKADDER THE align_mm_vaddr???????
+  //TO CHECK
   void * align_mm_vaddr = (void *)PGROUNDDOWN(mm_vaddr);
   pte_t *pte = (void *)walkaddr(pagetable, (uint64)align_mm_vaddr);
   uint64 pa = PTE2PA(*pte);
@@ -324,7 +421,7 @@ int
 load_page_to_main_mem(uint64 pa,void *va){
   //struct proc *p = myproc();
   int ind;
-
+  
   for(ind = 0; ind < MAX_PSYC_PAGES; ind++) {
     if(myproc()->ram_page_array[ind].used){
       continue;
@@ -343,6 +440,14 @@ load_page_to_main_mem(uint64 pa,void *va){
   }
   myproc()->ram_page_array[ind].used = 1;
   myproc()->ram_page_array[ind].p_v_address = (uint64)va; 
+  #if defined(SCFIFO)
+    myproc()->ram_page_array[ind].insert_to_mem_ind = myproc()->insertToMemInd;
+    myproc()->insertToMemInd++;
+  #endif
+  #if defined(NFUA) || defined(LAPA)
+    myproc()->ram_page_array[ind].counter = 0xFFFFFFFF;
+  #endif
+
 
   return 0;
 }
@@ -353,69 +458,84 @@ load_page_to_main_mem(uint64 pa,void *va){
 uint64
 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 {
-  //printf ("in uvmalloc\n");
   //struct proc *p = myproc();
-  char *mem;
-  uint64 a, pa;
-  int index;
+  
+  uint64 a;
   if(newsz < oldsz)
     return oldsz;
 
   oldsz = PGROUNDUP(oldsz);
   for(a = oldsz; a < newsz; a += PGSIZE){
-    index=0;
-    mem = kalloc();
-    if(mem == 0){
-      uvmdealloc(pagetable, a, oldsz);
-      return 0;
-    }
-    memset(mem, 0, PGSIZE);
-    if (myproc()->pid <= 2){ // TODO <= or <
-      goto handle_Init_And_Shell;
-    }
-    printf("process with pid >2\n");
-    index = find_free_page_in_main_mem();
-    // now index is either an inex of an unused page or there aren't any and it is 16.
-    //mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
-    printf("index of frre page in mem ins : %d\n", index);
-    //first case
-    if(index >= 0 && index < MAX_PSYC_PAGES){ //MAX_PSYC_PAGES
-      if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
-        kfree(mem);
-        uvmdealloc(pagetable, a, oldsz);
-        return 0;
-      }
-      myproc()->ram_page_array[index].used = 1;
-      myproc()->ram_page_array[index].p_v_address = a;
-      //myproc()->ram_page_array[index].pagetable = pagetable; TODO still empty in page struct
-      continue; // TODO continue works in FOR?
-    }
-    else{
-      kfree(mem);
-      pa = swap_page(pagetable);
-      if (pa ==0){
-        printf("process %d needs more than 32 pages...", myproc()->pid);
-        exit(1); //????
-      }
-      //CHECK IF SUCCESS????????
-      load_page_to_main_mem(pa, (char*)a);
-    }
-    printf("should??\n");
-    continue;    
+      #if defined(NONE)
+        char *mem;
+        mem = kalloc();
+        if(mem == 0){
+          uvmdealloc(pagetable, a, oldsz);
+          return 0;
+        }
+        memset(mem, 0, PGSIZE);
+        if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
+          kfree(mem);
+          uvmdealloc(pagetable, a, oldsz);
+          return 0;
+        }
+      #endif 
+
+      #if defined(NFUA) || defined(LAPA) || defined(SCFIFO)
+        char *mem;
+        int index=0;
+        mem = kalloc();
+        if(mem == 0){
+          uvmdealloc(pagetable, a, oldsz);
+          return 0;
+        }
+        memset(mem, 0, PGSIZE);
+        if (myproc()->pid < 2){
+          goto handle_Init_And_Shell;
+        }
+        index = find_free_page_in_main_mem();
+        // now index is either an inex of an unused page or there aren't any and it is 16.
+        //mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
+
+        //first case
+        if(index >= 0 && index < MAX_PSYC_PAGES){ //MAX_PSYC_PAGES
+          if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
+            kfree(mem);
+            uvmdealloc(pagetable, a, oldsz);
+            return 0;
+          }
+          myproc()->ram_page_array[index].used = 1;
+          myproc()->ram_page_array[index].p_v_address = a;
+          //myproc()->ram_page_array[index].pagetable = pagetable; TODO still empty in page struct
+          continue; // TODO continue works in FOR?
+        }
+        else{
+          if(a >= MAX_PSYC_PAGES*PGSIZE && myproc()->pid != 1 && myproc()->pid != 2){
+            uint64 pa;
+            kfree(mem);
+            pa = swap_page(pagetable);
+            if (pa == 0){
+              printf("process %d needs more than 32 pages...", myproc()->pid);
+              //exit(1); //????
+            }
+            //CHECK IF SUCCESS????????
+            load_page_to_main_mem(pa, (char*)a);
+          }
+        }
+        continue;    
   
  
-    handle_Init_And_Shell:
-    printf("handilng init and shel\n");
-      if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
-        printf("failedl\n");
-        kfree(mem);
-        uvmdealloc(pagetable, a, oldsz);
-        return 0;
-      }
-   // printf("after handilng init and shell\n");
+        handle_Init_And_Shell:
+          if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
+            kfree(mem);
+            uvmdealloc(pagetable, a, oldsz);
+            return 0;
+          }
+      #endif
+ 
+    }
+    return newsz;
   }
-  return newsz;
-}
 
 
 uint64
