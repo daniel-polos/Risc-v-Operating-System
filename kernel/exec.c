@@ -29,7 +29,6 @@ exec(char *path, char **argv)
   }
 
   
-
   begin_op();
 
   if((ip = namei(path)) == 0){
