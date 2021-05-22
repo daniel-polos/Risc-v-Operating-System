@@ -37,6 +37,8 @@ void
 usertrap(void)
 {
   int which_dev = 0;
+  uint64 pa, va;
+  char buffer[PGSIZE];
 
   if((r_sstatus() & SSTATUS_SPP) != 0)
     panic("usertrap: not from user mode");
@@ -50,14 +52,7 @@ usertrap(void)
   // save user program counter.
   p->trapframe->epc = r_sepc();
   
-  if (r_scause()== 13 || r_scause==15){
-    uint64 va =PGROUNDDOWN(r_stval());
-    //TODO HANDLE THETRAP
-  }
-
   if(r_scause() == 8){
-    // system call
-
     if(p->killed)
       exit(-1);
 
@@ -70,6 +65,10 @@ usertrap(void)
     intr_on();
 
     syscall();
+  else if(r_scause() == 13 || r_scause() == 15){
+    va = r_stval();
+    handle_pagefault(va);
+  
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
@@ -221,5 +220,72 @@ devintr()
   } else {
     return 0;
   }
+}
+
+void
+handle_pagefault(uint64 va){
+  int ind = 0;
+  uint64 align_va = PGROUNDDOWN(va); //NEEDED HERE?
+  pte_t *pte = walk(p->pagetable, align_va, 0);
+  struct proc *p = myproc();
+  
+  if(pte == 0){
+    panic("handeling page fault, no PTE exists");
+  }
+  if(!(*pte & PTE_PG)){
+    panic("handeling page fault, page is not in the swap file");
+  }
+  if(pte & ~PTE_V){ //CHECK ????????????
+    panic("handeling page fault, PTE is not valid");
+  }
+
+  while(ind < 16){
+    if(p->swap_page_array[ind].p_v_address == align_va)
+      break;
+    ind ++;
+  }
+  if(ind > 15){
+    printf("handeling page fault, page not exist in swap file\n");
+    //panic() ?????
+  }
+  //????????????
+  if(swap_page_array[ind].used == 0){
+    panic("handeling page fault, the page is not used");
+  }
+
+  readFromSwapFile(p, buffer, ind*PGSIZE, PGSIZE);
+
+  p->swap_page_array[ind].used = 0;
+  p->swap_page_array[ind].p_v_address = 0;
+
+  //search free page in main memory
+  free_page_ind = find_free_page_in_main_mem(); //MAYBE FIRST TRY TO FINE FREE PLACE ?????????
+  if(free_page_ind < 0) {
+      //free_page_ind = select_page_to_swap();
+      pa = swap_page(pagetable);
+      if (pa ==0){
+        printf("process %d needs more than 32 pages...", p->pid);
+        exit();
+      }
+      load_page_to_main_mem(pa, (char*)align_va);
+      memmove(pa, buffer, PGSIZE);   
+  }
+
+  else{
+    mem = kalloc();
+    if(mem == 0){
+      uvmdealloc(pagetable, align_va, oldsz);
+      return 0; //?????????
+    }
+    if(mappages(pagetable, align_va, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
+        kfree(mem);
+        uvmdealloc(pagetable, align_va, oldsz);
+        return 0; //???????????
+    }
+    memmove(mem, buffer, PGSIZE);
+    p->ram_page_array[free_page_ind].used = 1;
+    p->ram_page_array[free_page_ind].p_v_address = align_va;
+  }
+  
 }
 
