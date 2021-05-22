@@ -37,8 +37,7 @@ void
 usertrap(void)
 {
   int which_dev = 0;
-  uint64 pa, va;
-  char buffer[PGSIZE];
+  uint64 va;
 
   if((r_sstatus() & SSTATUS_SPP) != 0)
     panic("usertrap: not from user mode");
@@ -65,9 +64,10 @@ usertrap(void)
     intr_on();
 
     syscall();
+  }
   else if(r_scause() == 13 || r_scause() == 15){
     va = r_stval();
-    handle_pagefault(va);
+    handle_pagefault((uint64)va);
   
   } else if((which_dev = devintr()) != 0){
     // ok
@@ -225,9 +225,13 @@ devintr()
 void
 handle_pagefault(uint64 va){
   int ind = 0;
+  int free_page_ind;
+  uint64 pa;
+  struct proc *p = myproc();
+  char buffer[PGSIZE];
   uint64 align_va = PGROUNDDOWN(va); //NEEDED HERE?
   pte_t *pte = walk(p->pagetable, align_va, 0);
-  struct proc *p = myproc();
+
   
   if(pte == 0){
     panic("handeling page fault, no PTE exists");
@@ -235,7 +239,7 @@ handle_pagefault(uint64 va){
   if(!(*pte & PTE_PG)){
     panic("handeling page fault, page is not in the swap file");
   }
-  if(pte & ~PTE_V){ //CHECK ????????????
+  if(*pte & ~PTE_V){ //CHECK ????????????
     panic("handeling page fault, PTE is not valid");
   }
 
@@ -249,7 +253,7 @@ handle_pagefault(uint64 va){
     //panic() ?????
   }
   //????????????
-  if(swap_page_array[ind].used == 0){
+  if(p->swap_page_array[ind].used == 0){
     panic("handeling page fault, the page is not used");
   }
 
@@ -262,25 +266,26 @@ handle_pagefault(uint64 va){
   free_page_ind = find_free_page_in_main_mem(); //MAYBE FIRST TRY TO FINE FREE PLACE ?????????
   if(free_page_ind < 0) {
       //free_page_ind = select_page_to_swap();
-      pa = swap_page(pagetable);
+      pa = swap_page(p->pagetable);
       if (pa ==0){
         printf("process %d needs more than 32 pages...", p->pid);
-        exit();
+        exit(0); //??
       }
       load_page_to_main_mem(pa, (char*)align_va);
-      memmove(pa, buffer, PGSIZE);   
+      memmove((void *)pa, buffer, PGSIZE);   
+
   }
 
   else{
-    mem = kalloc();
+    char *mem = kalloc();
     if(mem == 0){
-      uvmdealloc(pagetable, align_va, oldsz);
-      return 0; //?????????
+      uvmdealloc(p->pagetable, PGSIZE, PGSIZE);
+      return; //?????????
     }
-    if(mappages(pagetable, align_va, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
+    if(mappages(p->pagetable, PGSIZE, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
         kfree(mem);
-        uvmdealloc(pagetable, align_va, oldsz);
-        return 0; //???????????
+        uvmdealloc(p->pagetable, PGSIZE, PGSIZE);
+        return; //???????????
     }
     memmove(mem, buffer, PGSIZE);
     p->ram_page_array[free_page_ind].used = 1;

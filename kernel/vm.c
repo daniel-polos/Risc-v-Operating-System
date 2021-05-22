@@ -1,8 +1,11 @@
+
 #include "param.h"
 #include "types.h"
 #include "memlayout.h"
 #include "elf.h"
 #include "riscv.h"
+#include "spinlock.h"
+#include "proc.h"
 #include "defs.h"
 #include "fs.h"
 
@@ -241,12 +244,117 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
   return newsz;
 }*/
 
+
+uint64
+find_free_swaped_page()
+{
+
+  int ind = 0;
+  //struct proc *p = myproc();
+
+  //NEED TO CHECK????? there is a limit on number of pages in file?
+  while(ind < MAX_PSYC_PAGES) {
+    if(!myproc()->swap_page_array[ind].used){
+      return ind;
+    }
+    ind++;
+  }
+
+  return -1;
+}
+
+int
+find_free_page_in_main_mem(){
+  //struct proc *p = myproc();
+  int ind = 0;
+
+  while(ind < MAX_PSYC_PAGES){ 
+    if(myproc()->ram_page_array[ind].used == 1){
+      ind++;
+     }
+    else{ // unused -> free space for the swapped out page
+      return ind;
+    }
+  }
+
+  return -1;
+}
+
+//NOT IMPLEMENTED YET - SECTION 2
+//return index of the chosen page in the array of main mem pages
+int
+select_page_to_swap(){
+  return 0;
+}
+
+uint64
+swap_page(pagetable_t pagetable){
+  //struct proc *p = myproc();
+  int ind;
+  int mm_ind;
+
+  ind = find_free_swaped_page();
+  if(ind < 0) {
+    return 0;
+  }
+  //selecet unused page in main mem and write it to the swapFIle
+  mm_ind = select_page_to_swap();
+  //save the virtual address of the swaped page
+  uint64 mm_vaddr = myproc()->ram_page_array[mm_ind].p_v_address;
+  writeToSwapFile(myproc(), (void *)mm_vaddr, ind*PGSIZE, PGSIZE);
+  myproc()->swap_page_array[ind].used = 1;
+  myproc()->swap_page_array[ind].p_v_address = mm_vaddr;
+  myproc()->ram_page_array[mm_ind].used = 0;
+
+  //NEED TO SEND TO WALKADDER THE align_mm_vaddr???????
+  void * align_mm_vaddr = (void *)PGROUNDDOWN(mm_vaddr);
+  pte_t *pte = (void *)walkaddr(pagetable, (uint64)align_mm_vaddr);
+  uint64 pa = PTE2PA(*pte);
+  memset((void *)pa, 0, PGSIZE); 
+  
+  //UPDATE PTE FLAGS
+  *pte |= PTE_PG; //page is on dick
+  *pte &= ~PTE_V; //page is not valid
+  //REFRESH TLB
+  sfence_vma();
+
+  return pa;
+}
+
+int
+load_page_to_main_mem(uint64 pa,void *va){
+  //struct proc *p = myproc();
+  int ind;
+  
+  for(ind = 0; ind < MAX_PSYC_PAGES; ind++) {
+    if(myproc()->ram_page_array[ind].used){
+      continue;
+    }
+    else{
+      break;
+    }
+  }
+  if(ind > MAX_PSYC_PAGES -1){
+    return -1;
+  }
+  if(mappages(myproc()->pagetable, (uint64)va, PGSIZE, pa, PTE_W|PTE_U) != 0){
+    uvmdealloc(myproc()->pagetable, PGSIZE, PGSIZE);
+    kfree(&pa); //FREE PYSICAL ADDRESS????????????????
+    return 1;
+  }
+  myproc()->ram_page_array[ind].used = 1;
+  myproc()->ram_page_array[ind].p_v_address = (uint64)va; 
+
+  return 0;
+}
+
+
 // Allocate PTEs and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
 uint64
 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 {
-  struct proc *p = myproc();
+  //struct proc *p = myproc();
   char *mem;
   uint64 a, pa;
   int index;
@@ -262,8 +370,8 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
       return 0;
     }
     memset(mem, 0, PGSIZE);
-    if (p->pid < 2){
-      goto handle_Init_And_Shell
+    if (myproc()->pid < 2){
+      goto handle_Init_And_Shell;
     }
     index = find_free_page_in_main_mem();
     // now index is either an inex of an unused page or there aren't any and it is 16.
@@ -276,8 +384,8 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
         uvmdealloc(pagetable, a, oldsz);
         return 0;
       }
-      p->ram_page_array[index].used = 1;
-      p->ram_page_array[index].p_v_address = a;
+      myproc()->ram_page_array[index].used = 1;
+      myproc()->ram_page_array[index].p_v_address = a;
       //myproc()->ram_page_array[index].pagetable = pagetable; TODO still empty in page struct
       continue; // TODO continue works in FOR?
     }
@@ -285,8 +393,8 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
       kfree(mem);
       pa = swap_page(pagetable);
       if (pa ==0){
-        printf("process %d needs more than 32 pages...", p->pid);
-        exit();
+        printf("process %d needs more than 32 pages...", myproc()->pid);
+        exit(1); //????
       }
       //CHECK IF SUCCESS????????
       load_page_to_main_mem(pa, (char*)a);
@@ -302,109 +410,6 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
       }
   }
   return newsz;
-}
-
-
-int
-load_page_to_main_mem(uint64 pa,void *va){
-  int ind = 0;
-  struct proc *p = myproc();
-  
-  for(ind; ind < MAX_PSYC_PAGES; ind++) {
-    if(p->ram_page_array[ind].used){
-      continue;
-    }
-    else{
-      break;
-    }
-  }
-  if(ind > MAX_PSYC_PAGES -1){
-    return -1;
-  }
-  if(mappages(p->pagetable, va, PGSIZE, pa, PTE_W|PTE_U) != 0){
-    uvmdealloc(p->pagetable, PGSIZE, PGSIZE);
-    kfree(pa); //FREE PYSICAL ADDRESS????????????????
-    return 1;
-  }
-  p->ram_page_array[ind].used = 1;
-  p->ram_page_array[ind].p_v_address = va; 
-
-  return 0;
-}
-
-
-
-uint64
-find_free_swaped_page(pagetable_t pagetable)
-{
-
-  int ind = 0;
-  struct proc *p = myproc();
-
-  //NEED TO CHECK????? there is a limit on number of pages in file?
-  while(ind < MAX_PSYC_PAGES) {
-    if(!p->swap_page_array[ind].used){
-      return ind;
-    }
-    ind++;
-  }
-
-  return -1;
-}
-
-swap_page(){
-  int ind;
-
-  ind = find_free_swaped_page();
-  if(ind < 0) {
-    return 0;
-  }
-  //selecet unused page in main mem and write it to the swapFIle
-  mm_ind = select_page_to_swap();
-  //save the virtual address of the swaped page
-  void *mm_vaddr = p->ram_page_array[mm_ind].p_v_address;
-  writeToSwapFile(p, mm_vaddr, ind*PGSIZE, PGSIZE);
-  p->swap_page_array[ind].used = 1;
-  p->swap_page_array[ind].p_v_address = mm_vaddr;
-  p->ram_page_array[mm_ind].used = 0;
-
-  //NEED TO SEND TO WALKADDER THE align_mm_vaddr???????
-  void * align_mm_vaddr = (void *)PGROUNDDOWN(mm_vaddr);
-  pte_t *pte = walkaddr(pagetable, (uint64)align_mm_vaddr);
-  uint64 pa = PTE2PA(*pte);
-  memset((void *)pa, 0, PGSIZE); 
-  
-  //UPDATE PTE FLAGS
-  *pte |= PTE_PG; //page is on dick
-  *pte &= ~PTE_V; //page is not valid
-  //REFRESH TLB
-  sfence_vma();
-
-  return pa;
-}
-
-//NOT IMPLEMENTED YET - SECTION 2
-//return index of the chosen page in the array of main mem pages
-int
-select_page_to_swap(){
-  return 0;
-}
-
-int
-find_free_page_in_main_mem(){
-  struct proc *p = myproc();
-  int ind = 0;
-
-  while(ind < MAX_PSYC_PAGES){ 
-    if(currproc->ram_page_array[index_in_swap_file].used)==1){
-      ind++;
-     }
-    else{ // unused -> free space for the swapped out page
-      return ind;
-    }
-  }
-
-  return -1;
 }
 
 

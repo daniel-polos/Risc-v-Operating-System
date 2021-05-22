@@ -155,6 +155,7 @@ void            trapinit(void);
 void            trapinithart(void);
 extern struct spinlock tickslock;
 void            usertrapret(void);
+void            handle_pagefault(uint64);
 
 // uart.c
 void            uartinit(void);
@@ -180,6 +181,14 @@ uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
+uint64          find_free_swaped_page(void);
+uint64          swap_page(pagetable_t);
+int             select_page_to_swap(void);
+int             find_free_page_in_main_mem(void);
+int             load_page_to_main_mem(uint64, void*);
+pte_t *         walk(pagetable_t, uint64, int);
+
+
 
 // plic.c
 void            plicinit(void);

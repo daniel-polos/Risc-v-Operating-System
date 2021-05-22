@@ -144,7 +144,7 @@ found:
   if(p->pid>2){
   int success =createSwapFile(p);
   if (success != 0)
-    panic(" could not create a swapfile to process with oid %d\n", p->pid);
+    panic("could not create a swapfile to current process");
   }
   return p;
 }
