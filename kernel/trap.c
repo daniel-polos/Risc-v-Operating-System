@@ -238,23 +238,22 @@ devintr()
 
 void
 handle_pagefault(uint64 va){
-  //debug
-  printf("inside handle_pagefault, va is: %p\n", va);
   int ind = 0;
+  char *mem;
   int free_page_ind;
   uint64 pa;
   struct proc *p = myproc();
   char* buffer = kalloc();
-  pte_t* pte_;
+  //pte_t* pte_;
 
   pa = walkaddr(p->pagetable, va);
   //debug
-  printf("pa of va: %p\n", pa);
+  printf("va: %p, pa: %p\n", va, pa);
   // CHECK
-  pte_t *pte = walk(p->pagetable, va, 0);
+  pte_t *pte = walk(p->pagetable, va, 1);
 
   //debug
-  printf("PTE_PG: %d, PTE_V: %d\n", *pte & PTE_PG, *pte & PTE_V);
+  printf("pte: %p, PTE_PG: %d, PTE_V: %d\n", pte, *pte & PTE_PG, *pte & PTE_V);
   
   if(!pte){
     panic("PTE doesn't exist");
@@ -283,7 +282,6 @@ handle_pagefault(uint64 va){
 
   //debug
   printf("before reading from swap file\n");
-
   readFromSwapFile(p, buffer, ind*PGSIZE, PGSIZE);
 
   //debug
@@ -294,34 +292,117 @@ handle_pagefault(uint64 va){
   //search free page in main memory
   free_page_ind = find_free_page_in_main_mem(); //MAYBE FIRST TRY TO FINE FREE PLACE ?????????
   if(free_page_ind < 0) {
-      //free_page_ind = select_page_to_swap();
-      pa = swap_page(p->pagetable);
-      if (pa ==0){
-        printf("process %d needs more than 32 pages...", p->pid);
-        return;
-      }
-      load_page_to_main_mem(p->pagetable, pa, (char*)va);
-      memmove((void *)pa, buffer, PGSIZE);
-      pte_ = walk(p->pagetable, va, 0);
-      *pte_ &= ~PTE_PG;   
+    ind = select_page_to_swap();
+    struct page* selected_page;
+    selected_page = &(p->ram_page_array[ind]);
+    pte_t *pte = (void *)walk(p->pagetable, (uint64)selected_page->p_v_address, 0);
+    uint64 pa = PTE2PA(*pte);
+    if(store_page(pte, pa, ind) < 0){
+      printf("There isn't enough space in swapFile");
+      return;
+    }   
   }
-
-  else{
-    char *mem = kalloc();
+  
+  mem = kalloc();
     if(mem == 0){
-      uvmdealloc(p->pagetable, PGSIZE, PGSIZE);
-      return; //?????????
+      uvmdealloc(p->pagetable, va, PGSIZE);
+      return;
     }
-    if(mappages(p->pagetable, va, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
-        kfree(mem);
-        uvmdealloc(p->pagetable, PGSIZE, PGSIZE);
-        return; //???????????
+ 
+  memmove(mem, buffer, PGSIZE);
+  
+  printf("calling to mappages with va: %p, mem: %p\n", va, mem);
+  if(mappages(p->pagetable, va, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
+    printf("unsuccesful mappages!");
+    kfree(mem);
+    uvmdealloc(p->pagetable, va, PGSIZE);
+    return;
+  }
+   
+  struct page* mm_page;
+  for(mm_page=p->ram_page_array; mm_page<&p->ram_page_array[MAX_PSYC_PAGES]; mm_page++){
+    if(mm_page->used == 0){
+      mm_page->p_v_address = va;
+      mm_page->used = 1;
+      #if defined(LAPA)
+        mm_page->counter = 4294967295;
+      #endif
+      #if defined(NFUA) ||defined(SCFIFO) || defined(NONE)
+        mm_page->counter = 0;
+      #endif
+      #if defined(SCFIFO)
+        mm_page->insert_to_mem_ind = myproc()->insertToMemInd;
+        myproc()->insertToMemInd++;
+      #endif
+      break;
     }
-    memmove(mem, buffer, PGSIZE);
-    p->ram_page_array[free_page_ind].used = 1;
-    p->ram_page_array[free_page_ind].p_v_address = va;
-    pte_ = walk(p->pagetable, va, 0);
-    *pte_ &= ~PTE_PG; 
   }
 }
+
+  //   char *mem = kalloc();
+  //   if(mem == 0){
+  //     uvmdealloc(p->pagetable, PGSIZE, PGSIZE);
+  //     return; //?????????
+  //   }
+  //   if(mappages(p->pagetable, va, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
+  //       kfree(mem);
+  //       uvmdealloc(p->pagetable, PGSIZE, PGSIZE);
+  //       return; //???????????
+  //   }
+  //   memmove(mem, buffer, PGSIZE);
+  //   p->ram_page_array[free_page_ind].used = 1;
+  //   p->ram_page_array[free_page_ind].p_v_address = va;
+  //   pte_ = walk(p->pagetable, va, 0);
+  //   *pte_ &= ~PTE_PG; 
+  // }
+
+
+/*
+  for(a = oldsz; a < newsz; a += PGSIZE){
+    // in case there is no more physical memory
+    if(a >= MAX_PSYC_PAGES*PGSIZE && pid != 1 && pid != 2){
+      #if defined(NFUA) || defined(LAPA) || defined(SCFIFO)
+        ind = select_page_to_swap();
+        struct page* selected_page;
+        selected_page = &(p->ram_page_array[ind]);
+        pte_t *pte = (void *)walk(p->pagetable, (uint64)selected_page->p_v_address, 0);
+        uint64 pa = PTE2PA(*pte);
+        if(store_page(pte, pa, ind) < 0){
+          printf("There isn't enough space in swapFile");
+          return 0;
+        }
+      #endif
+    }
+    mem = kalloc();
+    if(mem == 0){
+      uvmdealloc(pagetable, a, oldsz);
+      return 0;
+    }
+    memset(mem, 0, PGSIZE);
+    if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
+      kfree(mem);
+      uvmdealloc(pagetable, a, oldsz);
+      return 0;
+    }
+   
+    struct page* mm_page;
+    for(mm_page=p->ram_page_array; mm_page<&p->ram_page_array[MAX_PSYC_PAGES]; mm_page++){
+      if(mm_page->used == 0){
+        mm_page->p_v_address = a;
+        mm_page->used = 1;
+        #if defined(LAPA)
+          mm_page->counter = 4294967295;
+        #endif
+        #if defined(NFUA) ||defined(SCFIFO) || defined(NONE)
+          mm_page->counter = 0;
+        #endif
+        #if defined(SCFIFO)
+          mm_page->insert_to_mem_ind = myproc()->insertToMemInd;
+          myproc()->insertToMemInd++;
+        #endif
+        break;
+      }
+    }
+  }
+*/
 

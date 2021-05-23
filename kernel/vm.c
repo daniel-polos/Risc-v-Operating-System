@@ -149,11 +149,17 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   uint64 a, last;
   pte_t *pte;
 
+  //debug
+  pte = walk(pagetable, va, 1);
+  //printf("inside mappages. va: %p, pte: %p\n", va, pte);
+
   a = PGROUNDDOWN(va);
   last = PGROUNDDOWN(va + size - 1);
   for(;;){
-    if((pte = walk(pagetable, a, 1)) == 0)
+    if((pte = walk(pagetable, a, 1)) == 0){
+      printf("pte is null pointer");
       return -1;
+    }
     if(*pte & PTE_V)
       panic("remap");
     *pte = PA2PTE(pa) | perm | PTE_V;
@@ -162,6 +168,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
     a += PGSIZE;
     pa += PGSIZE;
   }
+  printf("returning 0");
   return 0;
 }
 
@@ -180,7 +187,7 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
   for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
     if((pte = walk(pagetable, a, 0)) == 0)
       panic("uvmunmap: walk");
-    if((*pte & PTE_V) == 0)
+    if((*pte & PTE_V) == 0 && (*pte & PTE_PG) == 0)
       panic("uvmunmap: not mapped");
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("uvmunmap: not a leaf");
@@ -292,10 +299,11 @@ handle_NFUA_scheme(){
       }
     }
   }
-  //debug
-  printf("returning ind\n", selected_page_ind);
+
   return selected_page_ind;
+ 
 }
+
 
 uint
 num_of_ones(uint counter){
@@ -339,8 +347,111 @@ handle_LAPA_scheme(){
       }
     }
   }
+
   return selected_page_ind;
+ 
 }
+
+int
+store_page(pte_t *pte, uint64 pa, int ind){
+  //debug
+  printf("selected swap page: p_addr: %p\n", pa);
+  
+  writeToSwapFile(myproc(), (char *)pa, ind*PGSIZE, PGSIZE);
+  uint64 va = myproc()->ram_page_array[ind].p_v_address;
+
+  int swap_arr_ind = find_free_swaped_page();
+  if (swap_arr_ind == -1){
+    return -1;
+  }
+
+  myproc()->swap_page_array[swap_arr_ind].used = 1;
+  myproc()->swap_page_array[swap_arr_ind].p_v_address = va;
+  myproc()->ram_page_array[ind].used = 0;
+
+  //memset((void *)pa, 0, PGSIZE);
+  //kfree((void *)pa);
+  //UPDATE PTE FLAGS
+  *pte |= PTE_PG; //page is on dick
+  *pte &= ~PTE_V; //page is not valid
+
+  //printf("pte PTE_PG flag is: %d\n", (*pte & PTE_PG));
+  
+  //REFRESH TLB
+  sfence_vma();
+
+  return 0;
+}  
+
+
+// Allocate PTEs and physical memory to grow process from oldsz to
+// newsz, which need not be page aligned.  Returns new size or 0 on error.
+uint64
+uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
+{
+  // printf("executing uvmalloc..\n");
+  char *mem;
+  uint64 a;
+  //uint64 page_address;
+  int ind;
+  struct proc *p = myproc();
+
+  if(newsz < oldsz)
+    return oldsz;
+  int pid = p->pid;
+
+  oldsz = PGROUNDUP(oldsz);
+  for(a = oldsz; a < newsz; a += PGSIZE){
+    // in case there is no more physical memory
+    if(a >= MAX_PSYC_PAGES*PGSIZE && pid != 1 && pid != 2){
+      #if defined(NFUA) || defined(LAPA) || defined(SCFIFO)
+        //debug
+        printf("need to swap. a: %p\n", a);
+        ind = select_page_to_swap();
+        struct page* selected_page;
+        selected_page = &(p->ram_page_array[ind]);
+        pte_t *pte = (void *)walk(p->pagetable, (uint64)selected_page->p_v_address, 0);
+        uint64 pa = PTE2PA(*pte);
+        if(store_page(pte, pa, ind) < 0){
+          printf("There isn't enough space in swapFile\n");
+          return 0;
+        }
+      #endif
+    }
+    mem = kalloc();
+    if(mem == 0){
+      uvmdealloc(pagetable, a, oldsz);
+      return 0;
+    }
+    memset(mem, 0, PGSIZE);
+    if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
+      kfree(mem);
+      uvmdealloc(pagetable, a, oldsz);
+      return 0;
+    }
+   
+    struct page* mm_page;
+    for(mm_page=p->ram_page_array; mm_page<&p->ram_page_array[MAX_PSYC_PAGES]; mm_page++){
+      if(mm_page->used == 0){
+        mm_page->p_v_address = a;
+        mm_page->used = 1;
+        #if defined(LAPA)
+          mm_page->counter = 4294967295;
+        #endif
+        #if defined(NFUA) ||defined(SCFIFO) || defined(NONE)
+          mm_page->counter = 0;
+        #endif
+        #if defined(SCFIFO)
+          mm_page->insert_to_mem_ind = myproc()->insertToMemInd;
+          myproc()->insertToMemInd++;
+        #endif
+        break;
+      }
+    }
+  }
+  return newsz;
+}
+
 
 
 int 
@@ -470,7 +581,7 @@ load_page_to_main_mem(pagetable_t pagetable,uint64 pa,void *va){
   printf("before calling to mappages, va: %p, pa: %p\n",va, pa);
   if(mappages(pagetable, (uint64)va, PGSIZE, pa, PTE_W|PTE_U) != 0){
     uvmdealloc(pagetable, PGSIZE, PGSIZE);
-    kfree(&pa); //FREE PYSICAL ADDRESS????????????????
+    kfree((void *)pa); //FREE PYSICAL ADDRESS????????????????
     return 1;
   }
   //debug
@@ -492,7 +603,7 @@ load_page_to_main_mem(pagetable_t pagetable,uint64 pa,void *va){
   return 0;
 }
 
-
+/*
 // Allocate PTEs and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
 uint64
@@ -587,7 +698,7 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
         }
         continue;    
   
- 
+ goto handle_Init_And_Shell;
         handle_Init_And_Shell:
           if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
             kfree(mem);
@@ -599,6 +710,7 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
     return newsz;
   }
 
+*/
 
 uint64
 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
