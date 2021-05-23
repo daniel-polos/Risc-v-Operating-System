@@ -74,6 +74,13 @@ usertrap(void)
       va = PGROUNDDOWN(r_stval());
       handle_pagefault((uint64)va);
     #endif
+    
+    #if defined(NONE)
+      printf("segmentation fault\n");
+      p->killed = 1;
+      return;
+    #endif
+
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
@@ -231,23 +238,32 @@ devintr()
 
 void
 handle_pagefault(uint64 va){
+  //debug
+  printf("inside handle_pagefault, va is: %p\n", va);
   int ind = 0;
   int free_page_ind;
   uint64 pa;
   struct proc *p = myproc();
-  char buffer[PGSIZE];
+  char* buffer = kalloc();
+  pte_t* pte_;
+
+  pa = walkaddr(p->pagetable, va);
+  //debug
+  printf("pa of va: %p\n", pa);
   // CHECK
   pte_t *pte = walk(p->pagetable, va, 0);
 
+  //debug
+  printf("PTE_PG: %d, PTE_V: %d\n", *pte & PTE_PG, *pte & PTE_V);
   
-  if(pte == 0){
-    panic("handeling page fault, no PTE exists");
+  if(!pte){
+    panic("PTE doesn't exist");
   }
   if(!(*pte & PTE_PG)){
-    panic("handeling page fault, page is not in the swap file");
+    panic("segmentation fault\n");
   }
   if(*pte & PTE_V){ //CHECK ????????????
-    panic("handeling page fault, PTE is not valid");
+    panic("PTE is not valid");
   }
 
   while(ind < 16){
@@ -255,17 +271,23 @@ handle_pagefault(uint64 va){
       break;
     ind ++;
   }
+
   if(ind > 15){
-    printf("handeling page fault, page not exist in swap file\n");
-    //panic() ?????
+    //printf("handeling page fault, page not exist in swap file\n");
+    panic("handeling page fault, page not exist in swap file\n");
   }
-  //????????????
+
   if(p->swap_page_array[ind].used == 0){
     panic("handeling page fault, the page is not used");
   }
 
+  //debug
+  printf("before reading from swap file\n");
+
   readFromSwapFile(p, buffer, ind*PGSIZE, PGSIZE);
 
+  //debug
+  printf("after reading from swap file\n");
   p->swap_page_array[ind].used = 0;
   p->swap_page_array[ind].p_v_address = 0;
 
@@ -276,10 +298,12 @@ handle_pagefault(uint64 va){
       pa = swap_page(p->pagetable);
       if (pa ==0){
         printf("process %d needs more than 32 pages...", p->pid);
-        //exit(0); //??
+        return;
       }
       load_page_to_main_mem(pa, (char*)va);
-      memmove((void *)pa, buffer, PGSIZE);   
+      memmove((void *)pa, buffer, PGSIZE);
+      pte_ = walk(p->pagetable, va, 0);
+      *pte_ &= ~PTE_PG;   
   }
 
   else{
@@ -296,6 +320,8 @@ handle_pagefault(uint64 va){
     memmove(mem, buffer, PGSIZE);
     p->ram_page_array[free_page_ind].used = 1;
     p->ram_page_array[free_page_ind].p_v_address = va;
+    pte_ = walk(p->pagetable, va, 0);
+    *pte_ &= ~PTE_PG; 
   }
 }
 
