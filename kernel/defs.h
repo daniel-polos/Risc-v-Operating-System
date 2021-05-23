@@ -185,7 +185,7 @@ uint64          find_free_swaped_page(void);
 uint64          swap_page(pagetable_t);
 int             select_page_to_swap(void);
 int             find_free_page_in_main_mem(void);
-int             load_page_to_main_mem(uint64, void*);
+int             load_page_to_main_mem(pagetable_t, uint64, void*);
 pte_t *         walk(pagetable_t, uint64, int);
 
 

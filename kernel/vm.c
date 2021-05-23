@@ -300,12 +300,14 @@ handle_NFUA_scheme(){
 uint
 num_of_ones(uint counter){
   //debug
-  printf("inside num_of_ones\n");
+  printf("inside num_of_ones, counter: %d\n", counter);
   int res = 0;
   while(counter){
-    if(counter%2 != 0)
+    if(counter%=2 != 0)
       res++;
   }
+  //debug
+  printf("finished num_of_ones\n");
   return res;
 }
 
@@ -320,6 +322,8 @@ handle_LAPA_scheme(){
   uint curr;
   uint lowest = -1;
   for(int i = 0; i < MAX_PSYC_PAGES; i++){
+    //debug
+    printf("inside for, i: %d\n", i);
     curr_page = &pages[i];
     if(lowest == -1 && curr_page->used){
       lowest = num_of_ones(curr_page->counter);
@@ -347,41 +351,37 @@ handle_SCFIFO_scheme(){
   struct proc* p = myproc();
   struct page* pages = p->ram_page_array;
   struct page* curr_page;
-  struct page* selected_page;
   uint curr;
   uint lowest = p->insertToMemInd;
+  //debug
+  printf("lowest intialized with: %d\n", lowest);
   for(int i = 0; i < MAX_PSYC_PAGES; i++){
     curr_page = &pages[i];
     curr = curr_page->insert_to_mem_ind;
+    //debug
+    printf("curr: %d, lowest: %d\n", curr, lowest);
     pte_t *pte = (void *)walk(p->pagetable, (uint64)curr_page->p_v_address, 0);
 
-    if(lowest){
-      if(curr < lowest && curr_page->used && (*pte & ~PTE_R)){
-        //*pte &= ~PTE_A;
-        lowest = curr;
-        selected_page_ind = i;
-      }
-      if(curr_page->used && (*pte & PTE_R)){
-       curr_page->insert_to_mem_ind = p->insertToMemInd;
-       p->insertToMemInd++;
-       *pte &= ~PTE_R; 
-      }
+    if(selected_page_ind == -1 && (*pte & ~PTE_A)){
+      lowest = curr;
+      selected_page_ind = i; 
     }
 
-
-  }
-    
-  //CHECK! IS NEEDED?????????
-  if(selected_page_ind != -1){
-    selected_page = &pages[selected_page_ind];
-    pte_t *pte = (void *)walk(p->pagetable, (uint64)selected_page->p_v_address, 0);
-    *pte &= ~PTE_R;   
+    if(curr < lowest && curr_page->used && (*pte & ~PTE_A)){
+      //*pte &= ~PTE_A;
+      lowest = curr;
+      selected_page_ind = i;
+    }
+      
+    if(curr_page->used && (*pte & PTE_A)){
+      curr_page->insert_to_mem_ind = p->insertToMemInd;
+      p->insertToMemInd++;
+      *pte &= ~PTE_A; 
+    }
   }
 
   return selected_page_ind;
 }
-
-
 
 //return index of the chosen page in the array of main mem pages
 int
@@ -415,6 +415,8 @@ swap_page(pagetable_t pagetable){
   }
   
   mm_ind = select_page_to_swap();
+  //debug
+  printf("ind is: %d\n", mm_ind);
   if(mm_ind == -1 || mm_ind >= MAX_PSYC_PAGES){
     panic("swap");
   }
@@ -432,6 +434,7 @@ swap_page(pagetable_t pagetable){
   myproc()->swap_page_array[ind].p_v_address = mm_vaddr;
   myproc()->ram_page_array[mm_ind].used = 0;
 
+  memset((void *)pa, 0, PGSIZE);
   //UPDATE PTE FLAGS
   *pte |= PTE_PG; //page is on dick
   *pte &= ~PTE_V; //page is not valid
@@ -445,7 +448,7 @@ swap_page(pagetable_t pagetable){
 }
 
 int
-load_page_to_main_mem(uint64 pa,void *va){
+load_page_to_main_mem(pagetable_t pagetable,uint64 pa,void *va){
   //debug
   printf("inside load_page_to_main_mem\n");
   //struct proc *p = myproc();
@@ -465,8 +468,8 @@ load_page_to_main_mem(uint64 pa,void *va){
   }
   //debug
   printf("before calling to mappages, va: %p, pa: %p\n",va, pa);
-  if(mappages(myproc()->pagetable, (uint64)va, PGSIZE, pa, PTE_W|PTE_U) != 0){
-    uvmdealloc(myproc()->pagetable, PGSIZE, PGSIZE);
+  if(mappages(pagetable, (uint64)va, PGSIZE, pa, PTE_W|PTE_U) != 0){
+    uvmdealloc(pagetable, PGSIZE, PGSIZE);
     kfree(&pa); //FREE PYSICAL ADDRESS????????????????
     return 1;
   }
@@ -476,6 +479,8 @@ load_page_to_main_mem(uint64 pa,void *va){
   myproc()->ram_page_array[ind].p_v_address = (uint64)va; 
   
   #if defined(SCFIFO)
+    //debug
+    printf("inside load_page_to_main_mem, in SCFIFO case\n");
     myproc()->ram_page_array[ind].insert_to_mem_ind = myproc()->insertToMemInd;
     myproc()->insertToMemInd++;
   #endif
@@ -493,7 +498,7 @@ load_page_to_main_mem(uint64 pa,void *va){
 uint64
 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 {
-  pte_t* pte;
+  
   //debug
   printf("inside uvmalloc\n");
   //struct proc *p = myproc();
@@ -522,6 +527,7 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
       #endif 
 
       #if defined(NFUA) || defined(LAPA) || defined(SCFIFO)
+        pte_t* pte;
         char *mem;
         int index=0;
         mem = kalloc();
@@ -574,7 +580,7 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
             }
             //debug
             printf("calling to load_page_to_main_mem\n");
-            load_page_to_main_mem(pa, (char*)a);
+            load_page_to_main_mem(pagetable, pa, (char*)a);
             pte = walk(pagetable, a, 0);
             *pte &= ~PTE_PG;
           }
@@ -589,7 +595,6 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
             return 0;
           }
       #endif
- 
     }
     return newsz;
   }

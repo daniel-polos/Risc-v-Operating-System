@@ -300,7 +300,7 @@ handle_pagefault(uint64 va){
         printf("process %d needs more than 32 pages...", p->pid);
         return;
       }
-      load_page_to_main_mem(pa, (char*)va);
+      load_page_to_main_mem(p->pagetable, pa, (char*)va);
       memmove((void *)pa, buffer, PGSIZE);
       pte_ = walk(p->pagetable, va, 0);
       *pte_ &= ~PTE_PG;   
