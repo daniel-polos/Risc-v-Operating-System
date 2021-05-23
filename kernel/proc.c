@@ -475,15 +475,15 @@ wait(uint64 addr)
 
 void
 update_page_counter(void){
-  struct proc *p = myproc();
   struct page* curr_page;
   
   for(int i = 0; i < MAX_PSYC_PAGES; i++){
-    curr_page = &p->ram_page_array[i];
-    p->ram_page_array[i].counter = p->ram_page_array[i].counter >> 1;
-    pte_t *pte = walk(p->pagetable, (uint64)curr_page->p_v_address, 0);
+    curr_page = &myproc()->ram_page_array[i];
+    myproc()->ram_page_array[i].counter >>= 1;
+    
+    pte_t *pte = walk(myproc()->pagetable, (uint64)curr_page->p_v_address, 0);
     if(*pte & PTE_A){
-      p->ram_page_array[i].counter = p->ram_page_array[i].counter | 0x80000000;
+      myproc()->ram_page_array[i].counter |= 0x80000000;
       *pte &= ~PTE_A;
     } 
   }

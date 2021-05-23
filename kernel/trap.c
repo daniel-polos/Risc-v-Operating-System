@@ -84,8 +84,6 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
-    //debug
-    printf("now the r_scause== %d\n", r_scause());
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;
@@ -246,6 +244,7 @@ handle_pagefault(uint64 va){
   uint64 pa;
   struct proc *p = myproc();
   char* buffer = kalloc();
+  struct page* mm_page;
   //pte_t* pte_;
 
   pa = walkaddr(p->pagetable, va);
@@ -266,7 +265,7 @@ handle_pagefault(uint64 va){
   if(*pte & PTE_V){ //CHECK ????????????
     panic("PTE is not valid");
   }
-  printf("in handle pagefault, v_a== %p\n", va);
+
   while(ind < 16){
     if(p->swap_page_array[ind].p_v_address == va)
       break;
@@ -283,7 +282,7 @@ handle_pagefault(uint64 va){
   }
 
   //debug
-  printf("before reading from swap file, index is: %d\n", ind);
+  printf("before reading from swap file\n");
   readFromSwapFile(p, buffer, ind*PGSIZE, PGSIZE);
 
   //debug
@@ -299,10 +298,8 @@ handle_pagefault(uint64 va){
     selected_page = &(p->ram_page_array[ind]);
     pte_t *pte = (void *)walk(p->pagetable, (uint64)selected_page->p_v_address, 0);
     uint64 pa = PTE2PA(*pte);
-     printf("selected swap page: p_addr: %p\n", pa);
-     printf("selected swap page: v_addr: %p\n", (uint64)selected_page->p_v_address);
-    if(store_page(pte, pa, ind) < 0){
-      printf("There isn't enough space in swapFile");
+    if(swap_file(pte, pa, ind) < 0){
+      printf("ERROR. There is not enough space in swapFile\n");
       return;
     }   
   }
@@ -312,40 +309,27 @@ handle_pagefault(uint64 va){
       uvmdealloc(p->pagetable, va, PGSIZE);
       return;
     }
-  printf("in handle, before memmove\n");
+ 
   memmove(mem, buffer, PGSIZE);
-  printf("in handle, after memmove\n");
-  printf("calling to mappages with va: %p, mem: %p\n", va, mem);
+  
+  //printf("calling to mappages with va: %p, mem: %p\n", va, mem);
   if(mappages(p->pagetable, va, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
     printf("unsuccesful mappages!");
     kfree(mem);
     uvmdealloc(p->pagetable, va, PGSIZE);
     return;
   }
-  //debug
-  printf("in handle pagefault, after mappages\n");
-  struct page* mm_page;
+   
   for(mm_page=p->ram_page_array; mm_page<&p->ram_page_array[MAX_PSYC_PAGES]; mm_page++){
-    if(mm_page->used == 0){
+    if(!mm_page->used){
+      
       mm_page->p_v_address = va;
       mm_page->used = 1;
-      #if defined(LAPA)
-        printf("used==0, now in LAPA\n");
-        mm_page->counter = 4294967295; //TODOOOOO change back?
-
-      #endif
-      #if defined(NFUA) ||defined(SCFIFO) || defined(NONE)
-        mm_page->counter = 0;
-      #endif
-      #if defined(SCFIFO)
-        mm_page->insert_to_mem_ind = myproc()->insertToMemInd;
-        myproc()->insertToMemInd++;
-      #endif
+      
+      update_strategy_attributes((uint64)mm_page);
       break;
     }
   }
-  //debug
-  printf("in handle pagefault, after for\n");
 }
 
   //   char *mem = kalloc();

@@ -89,7 +89,7 @@ struct page { //ass3
   int used;
   uint64 p_v_address; //virtual address TODO can be void*
   //#if defined(NFUA) ||defined(LAPA)
-  int counter;
+  uint counter;
   //#endif
   //#if defined(SCFIFO)
   int insert_to_mem_ind;
