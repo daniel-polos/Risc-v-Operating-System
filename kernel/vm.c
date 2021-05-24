@@ -263,7 +263,7 @@ find_free_page_in_main_mem(){
 int 
 handle_NFUA_scheme(){
   //debug
-  printf("inside handle_NFUA_scheme\n");
+  //printf("inside handle_NFUA_scheme\n");
   int selected_page_ind = -1;
   struct proc* p = myproc();
   struct page* pages = p->ram_page_array;
@@ -399,7 +399,7 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
     if(a >= MAX_PSYC_PAGES*PGSIZE && myproc()->pid != 1 && myproc()->pid != 2){
       #if defined(NFUA) || defined(LAPA) || defined(SCFIFO)
         //debug
-        printf("need to swap. a: %p\n", a);
+        //printf("need to swap. a: %p\n", a);
         int ind;
         struct page* selected_page;
 
@@ -446,7 +446,7 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 int 
 handle_SCFIFO_scheme(){
   //debug
-  printf("inside handle_SCFIFO_scheme\n");
+  //printf("inside handle_SCFIFO_scheme\n");
   int selected_page_ind = -1;
   struct proc* p = myproc();
   struct page* pages = p->ram_page_array;
@@ -463,7 +463,7 @@ handle_SCFIFO_scheme(){
     //printf("curr: %d, lowest: %d\n", curr, lowest);
     pte_t *pte = (void *)walk(p->pagetable, (uint64)curr_page->p_v_address, 0);
 
-    if(selected_page_ind == -1 && (*pte & ~PTE_A)){
+    if(selected_page_ind == -1 && (*pte & ~PTE_A) && curr_page->used){
       lowest = curr;
       selected_page_ind = i; 
     }

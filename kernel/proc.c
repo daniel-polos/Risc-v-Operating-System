@@ -314,14 +314,14 @@ fork(void)
   //acquire(&np->lock);
 
   //debug
-  printf("in fork, before reading from swapFIle\n");
+  //printf("in fork, before reading from swapFIle\n");
   if(p->pid>2 && p->swapFile){
     for(int i = 0; i < MAX_PSYC_PAGES; i++){
       readFromSwapFile(p, buff, i*PGSIZE, PGSIZE);
       writeToSwapFile(np, buff, i*PGSIZE, PGSIZE);
     }
   //debug
-  printf("after reading and writing\n");
+  //printf("after reading and writing\n");
 
     for(int i = 0; i < MAX_PSYC_PAGES; i++){
       np->ram_page_array[i] = p->ram_page_array[i];

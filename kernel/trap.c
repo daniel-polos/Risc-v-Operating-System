@@ -241,20 +241,20 @@ handle_pagefault(uint64 va){
   int ind = 0;
   char *mem;
   int free_page_ind;
-  uint64 pa;
+  //uint64 pa;
   struct proc *p = myproc();
   char* buffer = kalloc();
   struct page* mm_page;
   //pte_t* pte_;
 
-  pa = walkaddr(p->pagetable, va);
+  //pa = walkaddr(p->pagetable, va);
   //debug
-  printf("va: %p, pa: %p\n", va, pa);
+  //printf("va: %p, pa: %p\n", va, pa);
   // CHECK
   pte_t *pte = walk(p->pagetable, va, 1);
 
   //debug
-  printf("pte: %p, PTE_PG: %d, PTE_V: %d\n", pte, *pte & PTE_PG, *pte & PTE_V);
+  //printf("pte: %p, PTE_PG: %d, PTE_V: %d\n", pte, *pte & PTE_PG, *pte & PTE_V);
   
   if(!pte){
     panic("PTE doesn't exist");
@@ -282,11 +282,11 @@ handle_pagefault(uint64 va){
   }
 
   //debug
-  printf("before reading from swap file\n");
+  //printf("before reading from swap file\n");
   readFromSwapFile(p, buffer, ind*PGSIZE, PGSIZE);
 
   //debug
-  printf("after reading from swap file\n");
+  //printf("after reading from swap file\n");
   p->swap_page_array[ind].used = 0;
   p->swap_page_array[ind].p_v_address = 0;
 
