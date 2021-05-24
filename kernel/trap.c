@@ -50,6 +50,11 @@ usertrap(void)
   // save user program counter.
   p->trapframe->epc = r_sepc();
   
+  if (r_scause()== 13 || r_scause==15){
+    uint64 va =PGROUNDDOWN(r_stval());
+    //TODO HANDLE THETRAP
+  }
+
   if(r_scause() == 8){
     // system call
 

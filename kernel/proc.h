@@ -1,3 +1,5 @@
+#define  MAX_PSYC_PAGES 16  //ass3
+#define  MAX_TOTAL_PAGES 32 //ass3
 // Saved registers for kernel context switches.
 struct context {
   uint64 ra;
@@ -82,6 +84,11 @@ struct trapframe {
 
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+struct page { //ass3
+  int used;
+  uint64 p_v_address; //virtual address TODO can be void*
+};
+
 // Per-process state
 struct proc {
   struct spinlock lock;
@@ -107,4 +114,6 @@ struct proc {
   char name[16];               // Process name (debugging)
 
   struct file *swapFile;
+  struct page ram_page_array[MAX_PSYC_PAGES]; //ass3
+  struct page swap_page_array[MAX_PSYC_PAGES]; //ass3
 };

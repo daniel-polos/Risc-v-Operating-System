@@ -140,7 +140,12 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
-
+  //add ass3
+  if(p->pid>2){
+  int success =createSwapFile(p);
+  if (success != 0)
+    panic(" could not create a swapfile to process with oid %d\n", p->pid);
+  }
   return p;
 }
 
@@ -357,6 +362,7 @@ exit(int status)
   iput(p->cwd);
   end_op();
   p->cwd = 0;
+  removeSwapFile(p); //ass3
 
   acquire(&wait_lock);
 

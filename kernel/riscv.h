@@ -1,3 +1,4 @@
+#define PTE_PG (1L << 9) // Paged out to secondary storage 
 // which hart (core) is this?
 static inline uint64
 r_mhartid()

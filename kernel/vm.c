@@ -214,7 +214,7 @@ uvminit(pagetable_t pagetable, uchar *src, uint sz)
 
 // Allocate PTEs and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
-uint64
+/*uint64
 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 {
   char *mem;
@@ -225,6 +225,7 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 
   oldsz = PGROUNDUP(oldsz);
   for(a = oldsz; a < newsz; a += PGSIZE){
+  
     mem = kalloc();
     if(mem == 0){
       uvmdealloc(pagetable, a, oldsz);
@@ -238,8 +239,108 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
     }
   }
   return newsz;
+}*/
+
+// Allocate PTEs and physical memory to grow process from oldsz to
+// newsz, which need not be page aligned.  Returns new size or 0 on error.
+uint64
+uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
+{
+  char *mem;
+  uint64 a;
+  int index, returnVal;
+  if(newsz < oldsz)
+    return oldsz;
+
+  oldsz = PGROUNDUP(oldsz);
+  for(a = oldsz; a < newsz; a += PGSIZE){
+    index=0;
+    mem = kalloc();
+    if(mem == 0){
+      uvmdealloc(pagetable, a, oldsz);
+      return 0;
+    }
+    memset(mem, 0, PGSIZE);
+    if (myproc()->pid < 2){
+      goto handle_Init_And_Shell
+    }
+    while(index< MAX_PSYC_PAGES){ //MAX_PSYC_PAGES
+      if(myproc()->ram_page_array[index].used)==1){
+        index++;
+      }
+      else{
+        break;
+      }
+    }
+    // now index is either an inex of an unused page or there aren't any and it is 16.
+    //first case
+    if(index<MAX_PSYC_PAGES){ //MAX_PSYC_PAGES
+      if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
+        kfree(mem);
+        uvmdealloc(pagetable, a, oldsz);
+        return 0;
+      }
+      myproc()->ram_page_array[index].used = 1;
+      myproc()->ram_page_array[index].p_v_address = a;
+      //myproc()->ram_page_array[index].pagetable = pagetable; TODO still empty in page struct
+      continue; // TODO continue works in FOR?
+    }
+    else{
+      returnVal = swap_and_alloc((uint64)mem);
+      if (returnVal ==0){
+        return returnVal;
+      }
+      continue;
+    }
+    handle_Init_And_Shell:
+    if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
+      kfree(mem);
+      uvmdealloc(pagetable, a, oldsz);
+      return 0;
+    }
+  }
+  return newsz;
 }
 
+int
+swap_and_alloc(ui mem)
+{
+  move_random_page_to_swapFile();
+  //TODO moving a page from swapFile to ram
+}
+
+
+void
+move_random_page_to_swapFile(pagetable_t pagetable;){
+  struct proc *currproc = myproc();
+  int index_in_swap_file, index_in_ram;
+  pte_t *pte;
+  struct page page;
+  index_in_swap_file=0;
+  while(index_in_swap_file< MAX_PSYC_PAGES){ 
+    if(currproc->swap_page_array[index_in_swap_file].used)==1){
+      index_in_swap_file++;
+     }
+    else{ // unused -> free space for the swapped out page
+      break;
+    }
+  }
+  //now index_in_swap_file in index of open space
+
+  index_in_ram=0;
+  while(index_in_ram < MAX_PSYC_PAGES){
+    if(myproc()->ram_page_array[index_in_ram].used==1){
+      break; //found a page to swap out (into the free space in swap file)
+    }
+    index_in_ram++;
+  }
+  page = currproc->ram_page_array[index_in_ram];
+  writeToSwapFile(currproc, (char*)currproc->ram_page_array[index_in_ram].p_v_address, index_in_swap_file*PGSIZE, PGSIZE);
+  currproc-> swap_page_array[index_in_swap_file]= page;
+  pte = walk(pagetable, page.p_v_address, 0); // TODO thats how you bring the relevant pte?
+  *pte |= PTE_PG;
+  *pte &= ~PTE_V;
+}
 // Deallocate user pages to bring the process size from oldsz to
 // newsz.  oldsz and newsz need not be page-aligned, nor does newsz
 // need to be less than oldsz.  oldsz can be larger than the actual
