@@ -228,7 +228,6 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 
   oldsz = PGROUNDUP(oldsz);
   for(a = oldsz; a < newsz; a += PGSIZE){
-  
     mem = kalloc();
     if(mem == 0){
       uvmdealloc(pagetable, a, oldsz);
@@ -292,7 +291,7 @@ swap_page(pagetable_t pagetable){
   //struct proc *p = myproc();
   int ind;
   int mm_ind;
-
+ 
   ind = find_free_swaped_page();
   if(ind < 0) {
     return 0;
@@ -325,7 +324,7 @@ int
 load_page_to_main_mem(uint64 pa,void *va){
   //struct proc *p = myproc();
   int ind;
-  
+
   for(ind = 0; ind < MAX_PSYC_PAGES; ind++) {
     if(myproc()->ram_page_array[ind].used){
       continue;
@@ -354,6 +353,7 @@ load_page_to_main_mem(uint64 pa,void *va){
 uint64
 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 {
+  //printf ("in uvmalloc\n");
   //struct proc *p = myproc();
   char *mem;
   uint64 a, pa;
@@ -370,15 +370,16 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
       return 0;
     }
     memset(mem, 0, PGSIZE);
-    if (myproc()->pid < 2){
+    if (myproc()->pid <= 2){ // TODO <= or <
       goto handle_Init_And_Shell;
     }
+    printf("process with pid >2\n");
     index = find_free_page_in_main_mem();
     // now index is either an inex of an unused page or there aren't any and it is 16.
     //mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
-
+    printf("index of frre page in mem ins : %d\n", index);
     //first case
-    if(index > 0 && index < MAX_PSYC_PAGES){ //MAX_PSYC_PAGES
+    if(index >= 0 && index < MAX_PSYC_PAGES){ //MAX_PSYC_PAGES
       if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
         kfree(mem);
         uvmdealloc(pagetable, a, oldsz);
@@ -399,15 +400,19 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
       //CHECK IF SUCCESS????????
       load_page_to_main_mem(pa, (char*)a);
     }
+    printf("should??\n");
     continue;    
   
  
     handle_Init_And_Shell:
+    printf("handilng init and shel\n");
       if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
+        printf("failedl\n");
         kfree(mem);
         uvmdealloc(pagetable, a, oldsz);
         return 0;
       }
+   // printf("after handilng init and shell\n");
   }
   return newsz;
 }

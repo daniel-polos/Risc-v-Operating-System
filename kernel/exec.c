@@ -20,7 +20,6 @@ exec(char *path, char **argv)
   struct proghdr ph;
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
-  
   int ind = 0;
   while(ind < 16){
     p->ram_page_array[ind].used = 0;

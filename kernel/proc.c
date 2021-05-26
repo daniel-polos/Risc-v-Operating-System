@@ -105,7 +105,6 @@ static struct proc*
 allocproc(void)
 {
   struct proc *p;
-
   for(p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
     if(p->state == UNUSED) {
@@ -143,11 +142,12 @@ found:
   
   //add ass3
   if(p->pid>2){
-  int success = createSwapFile(p);
-  if (success != 0)
-    panic("could not create a swapfile to current process");
+    release(&p->lock);
+    int success = createSwapFile(p);
+    acquire(&p->lock);
+    if (success != 0)
+      panic("could not create a swapfile to current process\n");
   }
-
   //aloc pages
   int i = 0;
   while(i < 16) {
@@ -155,7 +155,6 @@ found:
     p->swap_page_array[i].used = 0;
     i++;
   }
-  
   return p;
 }
 
@@ -287,7 +286,7 @@ growproc(int n)
 int
 fork(void)
 {
-  char buff[PGSIZE];
+//  char buff[PGSIZE];
   int i, pid;
   struct proc *np;
   struct proc *p = myproc();
@@ -303,11 +302,10 @@ fork(void)
     release(&np->lock);
     return -1;
   }
-
   /* The forked process should have its own swap file whose 
   initial content is identical to the parent's file
   */
-  if(p->pid>2){
+  /*if(p->pid>2){
     int i = 0;
     while(i < MAX_PSYC_PAGES){
       readFromSwapFile(p, buff, i*PGSIZE, PGSIZE);
@@ -316,8 +314,7 @@ fork(void)
     }
     memmove(p->ram_page_array, np->ram_page_array, sizeof(struct page)*MAX_PSYC_PAGES);
     memmove(p->swap_page_array, np->swap_page_array, sizeof(struct page)*MAX_PSYC_PAGES);
-  }
-
+  }*/
   np->sz = p->sz;
 
   // copy saved user registers.
@@ -388,6 +385,7 @@ exit(int status)
   iput(p->cwd);
   end_op();
   p->cwd = 0;
+  //printf("ffff\n");
   removeSwapFile(p); //ass3
 
   acquire(&wait_lock);
