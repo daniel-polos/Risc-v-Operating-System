@@ -44,6 +44,7 @@
 			for(i = 0; i < j; i++) {
                 printf("access to %d page!!!!!!!!\n", i);
 				data[i][10] = 2; // access to the i-th page
+				printf("data[i][4]== %d\n", data[i][4]);
 				printf("%d, ",i);
 			}
 			printf("\n");
@@ -54,7 +55,8 @@
 	
 		int k;
 		int pid = fork();
-        printf("after fork!\n");
+        //debug
+		printf("after fork!\n");
 		if (pid)
 			sleep(10);
 		else {

@@ -168,7 +168,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
     a += PGSIZE;
     pa += PGSIZE;
   }
-  printf("returning 0");
+  //printf("returning 0\n");
   return 0;
 }
 
@@ -311,11 +311,11 @@ num_of_ones(uint counter){
   printf("inside num_of_ones, counter: %d\n", counter);
   int res = 0;
   while(counter){
-    if(counter%=2 != 0)
+    if(counter & 1){
       res++;
+    }
+    counter = counter >> 1;
   }
-  //debug
-  printf("finished num_of_ones\n");
   return res;
 }
 
@@ -334,16 +334,23 @@ handle_LAPA_scheme(){
     printf("inside for, i: %d\n", i);
     curr_page = &pages[i];
     if(lowest == -1 && curr_page->used){
+      //debug
+      printf("inside id lowest==-1\n");
       lowest = num_of_ones(curr_page->counter);
       selected_page_ind = i;
+      //debug
+      printf("in lowest == -1 amnd currpage is used\n lowest: %d selected_page_index: %d\ncounter= %p", lowest,selected_page_ind, curr_page->counter);
     }
     curr = num_of_ones(curr_page->counter);
-
+    printf("curr: %d\n", curr);
+    
     if(lowest != -1){
       if((curr < lowest && curr_page->used) ||
       ((curr == lowest && curr_page->counter < pages[selected_page_ind].counter) && curr_page->used)){
         lowest = curr;
         selected_page_ind = i;
+        //debug
+        printf("in lowest != -1\n lowest: %d selected_page_index: %d\n", lowest,selected_page_ind);
       }
     }
   }
@@ -357,13 +364,15 @@ store_page(pte_t *pte, uint64 pa, int ind){
   //debug
   printf("selected swap page: p_addr: %p\n", pa);
   
-  writeToSwapFile(myproc(), (char *)pa, ind*PGSIZE, PGSIZE);
+  //writeToSwapFile(myproc(), (char *)pa, ind*PGSIZE, PGSIZE);
   uint64 va = myproc()->ram_page_array[ind].p_v_address;
-
+  //debug
+  printf("selected swap page: v_addr: %p\n", va);
   int swap_arr_ind = find_free_swaped_page();
   if (swap_arr_ind == -1){
     return -1;
   }
+  writeToSwapFile(myproc(), (char *)pa, swap_arr_ind*PGSIZE, PGSIZE);
 
   myproc()->swap_page_array[swap_arr_ind].used = 1;
   myproc()->swap_page_array[swap_arr_ind].p_v_address = va;
@@ -470,7 +479,7 @@ handle_SCFIFO_scheme(){
     curr_page = &pages[i];
     curr = curr_page->insert_to_mem_ind;
     //debug
-    printf("curr: %d, lowest: %d\n", curr, lowest);
+    //printf("curr: %d, lowest: %d\n", curr, lowest);
     pte_t *pte = (void *)walk(p->pagetable, (uint64)curr_page->p_v_address, 0);
 
     if(selected_page_ind == -1 && (*pte & ~PTE_A)){
@@ -561,7 +570,7 @@ swap_page(pagetable_t pagetable){
 int
 load_page_to_main_mem(pagetable_t pagetable,uint64 pa,void *va){
   //debug
-  printf("inside load_page_to_main_mem\n");
+  printf("inside load_page_to_main_memmmmmmm\n");
   //struct proc *p = myproc();
   int ind;
   
@@ -596,6 +605,7 @@ load_page_to_main_mem(pagetable_t pagetable,uint64 pa,void *va){
     myproc()->insertToMemInd++;
   #endif
   #if defined(NFUA) || defined(LAPA)
+    printf("in ifdef va: %p", myproc()->ram_page_array[ind].p_v_address);
     myproc()->ram_page_array[ind].counter = 0xFFFFFFFF;
   #endif
 
@@ -773,7 +783,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
-    if((*pte & PTE_V) == 0)
+    if(((*pte & PTE_V) == 0) && !(*pte & PTE_PG))
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
