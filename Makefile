@@ -150,7 +150,6 @@ UPROGS=\
 	$U/_zombie\
 	$U/_lazytests\
 	$U/_memtest\
-	$U/_memtest2\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

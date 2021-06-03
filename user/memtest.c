@@ -154,9 +154,9 @@ void memory_test(void){
 /* 
 RESUTS:
 num of pagefaults		Page replacement algorithms
-85 						SCFIFO
-41						LAPA
-37						NFUA*/
+97 						SCFIFO
+52						LAPA
+49						NFUA*/
 
 struct test {
     void (*f)(void);

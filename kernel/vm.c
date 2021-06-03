@@ -556,7 +556,7 @@ uvmfree(pagetable_t pagetable, uint64 sz)
 int
 uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 {
-  pte_t *pte;
+  pte_t *pte, *np_pte;
   uint64 pa, i;
   uint flags;
   char *mem;
@@ -574,6 +574,11 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
       kfree(mem);
       goto err;
+    }
+    if(*pte & PTE_PG){
+      np_pte = walk(new, i, 0);
+      *np_pte &= ~PTE_V;
+      *np_pte |= PTE_PG;
     }
   }
   return 0;
